@@ -181,6 +181,10 @@ td,th {
 	color:white;
 	padding:20px 0;
 }
+td.subtitle{
+	text-align: center;
+	font-size: .7rem;
+}
 
 /* ===============
     ALL: IE Fixes
