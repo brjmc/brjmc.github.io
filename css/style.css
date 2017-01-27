@@ -7,15 +7,15 @@ audio:not([controls]) { display: none; }
 [hidden] { display: none; }
 
 html { font-size: 100%; overflow-y: scroll; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-body { margin: 0; font-size: 13px; line-height: 1.231; background-color:  #f8f9fa}
+body { margin: 0; font-size: 13px; line-height: 1.231; background-color:  #f8f9fa;}
 body, button, input, select, textarea { font-family: sans-serif; color: #222; }
 
 ::-moz-selection { background: #fe57a1; color: #fff; text-shadow: none; }
 ::selection { background: #fe57a1; color: #fff; text-shadow: none; }
 
-a { color: #00e; }
-a:visited { color: #551a8b; }
-a:hover { color: #06e; }
+a { color: #00e; text-decoration: none; }
+a:visited { color: #551a8b; text-decoration: none;}
+a:hover { color: #06e; text-decoration: underline; }
 a:focus { outline: thin dotted; }
 a:hover, a:active { outline: 0; }
 
@@ -83,7 +83,8 @@ h1#title{
 #title-sub{
 	font-size: .75rem;
 }
-.wrapper{
+.body{
+	display: table;
 	width:90%;
 	margin:0 5%;
 }
@@ -129,8 +130,12 @@ nav a:hover{
 #main article h1{
 	font-size:2em;
 }
+#main article{
+	display: table-footer-group;
+}
 
 #main aside{
+	display: table-header-group;
 	background: #f8f9fa;
 	border: 1px #a2a9b1 solid;
 	font-size: .8rem;
@@ -215,10 +220,13 @@ td.subtitle{
 	
 	nav a{
 		float:right;
-		width:20%;
+		width:18%;
+		height: 2rem;
 		margin:0 1.7%;
-		padding:2px 2%;
-		margin-bottom:0;
+		padding:1px 2%;
+		border: 1px solid #b8e2f9;
+		border-bottom: 1px solid white;
+		background: white;
 	}
 	
 	nav li:first-child a{ margin-left:0;  }
@@ -258,12 +266,12 @@ td.subtitle{
 
 	#main article{
 		float:left;
-		width:70%;
+		width:72%;
 	}
 		
 	#main aside{
 		float:right;
-		width:26%;
+		width:27%;
 	}
 }
 
@@ -274,8 +282,8 @@ td.subtitle{
    =============== */
 
 	.wrapper{
-		width:1026px; /* 1140px - 10% for margins */
-		margin:0 auto;
+		width:1066px; /* 1140px - 10% for margins */
+		margin: 0 0px auto auto;
 	}
 }
 
