@@ -1,6 +1,6 @@
 
 
-body{ font:16px/32px Helvetica, Helvetica Neue, Arial, sans-serif; background: #f8f9fa;}
+body{ font:16px/32px Helvetica, Helvetica Neue, Arial, sans-serif; background: #f8f9fa; color: #000000}
 #container{
 	width: 86%;
 	background: #fff;
@@ -28,7 +28,15 @@ li{
 	padding-bottom:0;
 	}
 li.read{
-	padding-left: 1px;
+	padding-left:1px;
+}
+
+.nav-tabs>li.active>a{
+	color: #000000;
+	background-image: -webkit-linear-gradient(bottom, #fff 10%, #f8f9fa 90%);
+	background-image: -o-linear-gradient(bottom, #fff 10%, #f8f9fa 90%);
+	background-image: linear-gradient(to top, #fff 10%, #f8f9fa 90%);
+	padding-bottom: 4px;	
 }
 
 .nav-tabs{
@@ -40,21 +48,18 @@ li.read{
 .nav-tabs>li>a:hover{
 	text-decoration: underline;
 }
-.nav-tabs>li.active>a{
-	padding-bottom: 4px;
-	background-image: -webkit-linear-gradient(bottom, #fff 10%, #f8f9fa 90%);
-	background-image: -o-linear-gradient(bottom, #fff 10%, #f8f9fa 90%);
-	background-image: linear-gradient(to top, #fff 10%, #f8f9fa 90%);
-}
+
 .nav-tabs>li>a{
+	color: #0645ad;
 	padding-bottom: 3px;
 	font-size: 1.3rem;
-	background-image: -webkit-linear-gradient(bottom, #cbdef4 20%, #f8f9fa 80%);
-	background-image: -o-linear-gradient(bottom, #cbdef4 20%, #f8f9fa 80%);
-	background-image: linear-gradient(to top, #cbdef4 20%, #f8f9fa 80%);
+	background-image: -webkit-linear-gradient(bottom, #EBF2F7 20%, #f8f9fa 80%);
+	background-image: -o-linear-gradient(bottom, #EBF2F7 20%, #f8f9fa 80%);
+	background-image: linear-gradient(to top, #EBF2F7 20%, #f8f9fa 80%);
 }
 
 .nav-tabs>li>a, .nav-tabs>li.active>a, .nav-tabs>li.active>a:focus, .nav-tabs>li.active>a:hover{
+	
 	text-decoration: none;
 	cursor: pointer;
 	height: 100%;
@@ -70,7 +75,8 @@ h1{
 	font-size: 3rem;
 }
 #resume{
-	width:80%;
+	padding-top: 3px;
+	width:100%;
 	height:auto;
 	background:#fff;
 	position:absolute;
@@ -100,6 +106,7 @@ article h1{
 }
 
 #main>aside{
+	border:1px #a2a9b1 solid;
 	background: #f8f9fa;
 	font-size: 1.2rem;
 	overflow: auto;
