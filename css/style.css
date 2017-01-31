@@ -1,30 +1,45 @@
 
 
-body{ font:16px/32px Helvetica, Helvetica Neue, Arial, sans-serif; background: #f8f9fa; color: #000000}
+body{
+	font:16px/32px Helvetica, Helvetica Neue, Arial, sans-serif;
+	background: #f8f9fa;
+	color: #000000;
+	line-height: 1.6;
+	}
 #container{
-	width: 86%;
+	width: 90%;
 	background: #fff;
 	padding: 0;
 }
 #header-container{
-	height: 70px;
-	border-bottom: 1px solid lightblue;
+	height: 60px;
+	border-bottom: 1px solid #a7d7f9;
 	background: #f8f9fa;
 	width: 100%;
 	margin: 0;
 	padding: 0;
 }
+
+#see-also{
+	margin-left:2rem;
+	font-size: 0.875em;
+}
+
 #main-container{
 	width: 100%;
 	display: table;
 	min-height: 700px;
-	border-left: 1px solid lightblue;
+	border-left: 1px solid #a7d7f9;
+}
+
+#main{
+	margin-left: 15px;
 }
 
 li{
-	background-image: -webkit-linear-gradient(bottom, lightblue 10%, #f8f9fa 90%);
-	background-image: -o-linear-gradient(bottom, lightblue 10%, #f8f9fa 90%);
-	background-image: linear-gradient(to top, lightblue 10%, #f8f9fa 90%);
+	background-image: -webkit-linear-gradient(bottom, #a7d7f9 10%, #f8f9fa 90%);
+	background-image: -o-linear-gradient(bottom, #a7d7f9 10%, #f8f9fa 90%);
+	background-image: linear-gradient(to top, #a7d7f9 10%, #f8f9fa 90%);
 	padding-bottom:0;
 	}
 li.read{
@@ -41,12 +56,20 @@ li.read{
 
 .nav-tabs{
 	padding-bottom: 0;
-	padding-top: 38px;
+	padding-top: 28px;
 	float:left;
 	border-bottom: 1px solid transparent;
 }
 .nav-tabs>li>a:hover{
 	text-decoration: underline;
+}
+
+.nav-tabs>li>a, .nav-tabs>li.active>a, .nav-tabs>li.active>a:focus, .nav-tabs>li.active>a:hover{
+	color: #000000;
+	text-decoration: none;
+	cursor: pointer;
+	height: 100%;
+	border: none;
 }
 
 .nav-tabs>li>a{
@@ -57,19 +80,19 @@ li.read{
 	background-image: -o-linear-gradient(bottom, #EBF2F7 20%, #f8f9fa 80%);
 	background-image: linear-gradient(to top, #EBF2F7 20%, #f8f9fa 80%);
 }
-
-.nav-tabs>li>a, .nav-tabs>li.active>a, .nav-tabs>li.active>a:focus, .nav-tabs>li.active>a:hover{
-	
-	text-decoration: none;
-	cursor: pointer;
-	height: 100%;
-	border: none;
+a, a:hover{
+	color: #337ab7;
 }
+a:visited{
+	color: #0b0080;
+}
+
 h1,h2,h3{
-	font: 24px/36px Georgia;
+	font-family: "Linux Libertine", Georgia, Times, serif;
 	padding-top:5px;
 	padding-bottom: 3px;
 	border-bottom: 1px solid #a2a9b1;
+	overflow: hidden;
 }
 h1{
 	font-size: 3rem;
@@ -83,38 +106,36 @@ h1{
 	top:0;
 	left:0;
 }
-h1,h2,h3{
-	font-family: "Linux Libertine", Georgia, Times, serif;
-}
 header h1#title{
-	font-size:3.2rem;
+	font-size:3rem;
 	margin-bottom:2px;
 }
-
 #title-sub{
-	font-size: .75rem;
+	font-size: 0.775em;
 }
 
-
-
-article h1{
-	font-size:2em;
-}
 #main>article{
-	padding-left:0;
+	position: relative;
+	font-size: 0.875em;
+	padding:0;
 	float:left;
 }
 
-#main>aside{
+#main>article>aside{
+	position: relative;
+	min-width: 271px;
 	border:1px #a2a9b1 solid;
 	background: #f8f9fa;
 	font-size: 1.2rem;
 	overflow: auto;
+	margin:0;
+	padding: 1rem;
 }
 
 aside th{
 	font-weight:bold;
 	text-align: left;
+	padding-right: 1rem;
 }
 aside td{
 	text-align: left;
@@ -123,7 +144,7 @@ aside td{
 .infobox-title{
 	padding: 4px;
 	text-align: center;
-	font-size: 1.1rem;
+	font-size: 1.6rem;
 	position: relative;
 }
 .headshot{
@@ -142,8 +163,6 @@ aside table{
 	width: 100%;
     background-color: #f8f9fa;
     padding: 0.2em;
-    float: right;
-    clear: right;
     line-height: 1.5em;
 }
 td,th {
@@ -153,5 +172,6 @@ td,th {
 
 td.subtitle{
 	text-align: center;
-	font-size: .7rem;
+	font-size: 1rem;
 }
+
