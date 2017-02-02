@@ -85,7 +85,7 @@ li.read{
 	background-image: linear-gradient(to top, #EBF2F7 20%, #f8f9fa 80%);
 }
 
-.nav-tabs li:nth-child(0n+5)>a {
+.nav-tabs li:nth-child(0n+3)>a {
 	margin-left: 1px;
 }
 
