@@ -9,5 +9,6 @@ var resizeAside = function () {
         aside.style.setProperty('margin-left', '1rem');
     }
 }
+
 window.onresize = resizeAside;
 resizeAside();

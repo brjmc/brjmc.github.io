@@ -1,0 +1,87 @@
+body {
+  padding: 40px;
+  font: 1.1rem "Lucida Grande", Helvetica, Arial, sans-serif;
+  font-weight: 300;
+}
+
+.content-wrapper {
+  margin-left: 16rem;
+}
+.header {
+  margin-left: 15rem;
+  position: relative;
+  border-bottom: thick double black;
+  margin-bottom: 3rem;
+}
+  
+.header h1 {
+    font-size: 4rem;
+    font-weight: 800;
+    text-align: left;
+    margin: 0 0 1rem -1.2rem;
+}
+
+.header p.subtitle {
+  font-size: 2rem;
+  text-align: left;
+  margin-left: -1rem;
+}
+
+#sidebar-wrapper {
+    width:14.5rem;
+    z-index: 1000;
+    position: fixed;
+    min-height: 105%;
+    margin-left: -2rem;
+    margin-top: -20rem;
+    overflow-y: auto;
+    border-right: thin solid gainsboro;
+}
+
+.sidebar-nav {
+    margin-top:5rem;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sidebar-nav li {
+    text-indent: 20px;
+    line-height: 40px;
+}
+
+.sidebar-nav li a {
+    display: block;
+    text-decoration: none;
+    color: slategray;
+}
+
+.readme {
+  overflow: auto;
+}
+
+.sidebar-nav li a:hover {
+  color: #00B7FF;
+} 
+
+h1.component {
+ font-size: 2.5rem;
+}
+
+.component {
+  text-align: left;
+}
+
+.tab-content.panel {
+  min-height: 150px;
+  overflow-y: auto;
+}
+.tab-content {
+  padding: 1rem;
+}
+
+a {
+  color: #00B7FF;
+}
