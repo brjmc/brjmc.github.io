@@ -43,7 +43,7 @@ li{
 	background-image: linear-gradient(to top, #a7d7f9 10%, #f8f9fa 90%);
 	padding-bottom:0;
 	}
-li.read{
+li.read, li.resume{
 	padding-left:1px;
 }
 
@@ -83,10 +83,6 @@ li.read{
 	background-image: -webkit-linear-gradient(bottom, #EBF2F7 20%, #f8f9fa 80%);
 	background-image: -o-linear-gradient(bottom, #EBF2F7 20%, #f8f9fa 80%);
 	background-image: linear-gradient(to top, #EBF2F7 20%, #f8f9fa 80%);
-}
-
-.nav-tabs li:nth-child(0n+3)>a {
-	margin-left: 1px;
 }
 
 a, a:hover{
