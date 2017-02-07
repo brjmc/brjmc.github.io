@@ -1,5 +1,5 @@
 body {
-  padding: 40px;
+  padding: 20px;
   font: 1.1rem "Lucida Grande", Helvetica, Arial, sans-serif;
   font-weight: 300;
 }
@@ -10,20 +10,20 @@ div.alert{
   top: 0;
   margin-top: 3rem;
   margin-bottom:0;
-  background-image: -webkit-linear-gradient(bottom, #a2a9b1 20%, #f8f9fa 80%);
-  background-image: -o-linear-gradient(bottom, #a2a9b1 20%, #f8f9fa 80%);
-  background-image: linear-gradient(to top, #a2a9b1 20%, #f8f9fa 80%);
-  border:1px #a2a9b1 solid;
+  background-image: -webkit-linear-gradient(bottom, #f6f6f6 20%, #ddd 80%);
+  background-image: -o-linear-gradient(bottom, #f6f6f6 20%, #ddd 80%);
+  background-image: linear-gradient(to top, #f6f6f6 20%, #ddd 80%);
+  border:1px #ddd solid;
 }
 
 .content-wrapper {
-  margin-left: 15rem;
+  margin: 0 2rem 0 13rem;
 }
 
 .header {
   padding:0;
   margin:0;
-  margin-left:12rem;
+  margin-left:11rem;
   margin-bottom: 3rem;
   position: relative;
   padding-left:0;
@@ -53,6 +53,7 @@ border-bottom: thick double black;
     min-height:100%;
     overflow-y: auto;
     border-right: thin solid gainsboro;
+    padding-left:0;
 }
 
 .sidebar-nav {
