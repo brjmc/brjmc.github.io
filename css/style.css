@@ -34,10 +34,7 @@ section>.meta-note{
 	display: table;
 	min-height: 700px;
 	border-left: 1px solid #a7d7f9;
-}
-
-#main{
-	margin-left: 15px;
+	padding: 0 24px;
 }
 
 li{

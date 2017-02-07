@@ -1,12 +1,12 @@
 var resizeAside = function () {
-    var aside = document.getElementById("infobox");
+    var infobox = document.getElementById("infobox");
     if (window.innerWidth < 564) {
-        aside.style.removeProperty('float');
-        aside.style.setProperty('margin-left', '-2rem');
+        infobox.style.removeProperty('float');
+        infobox.style.setProperty('margin-left', '-2rem');
     } else {
-        aside.style.removeProperty('width');
-        aside.style.setProperty('float', 'right');
-        aside.style.setProperty('margin-left', '1rem');
+        infobox.style.removeProperty('width');
+        infobox.style.setProperty('float', 'right');
+        infobox.style.setProperty('margin-left', '1rem');
     }
 }
 
