@@ -13,11 +13,18 @@
 
 <body>
     <div class="col-sm-11 header">
-        <h1 id="top">U.I. Catalog</h1>
-        <p class="subtitle">Welcome to U.I. Catalog</p>
+        <div class="greeting">
+            <h1 id="top">U.I. Catalog</h1>
+            <p class="subtitle">Welcome to U.I. Catalog</p>
+        </div>
+        <div class="alert alert-warning alert-dismissible pull-left" role="alert">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <strong>What is the UI Catalog?</strong> The UI Catalog was developed under the supervision of a senior developer at INgrooves. It is the realization of a project intended to increase code reuse among developers and automaticall generate documentation for existing components.
+        </div>
     </div>
-    <div class="col-sm-1 pull-left">
-        <div id="sidebar-wrapper">
+
+    <div class="col-sm-1 pull-left" id="sidebar-wrapper">
+        <div>
             <ul class="sidebar-nav">
                 <li class="sidebar-brand">
                     <a href="#top">
@@ -49,25 +56,26 @@
                         <p class="component">
                             <input type="text" id="myInput" onkeyup="filterNames()" placeholder="Search for names..">
 
-</p>
-<ul id="myUL">
-    <li><a href="#" class="list-header">A</a></li>
-    <li><a href="#">Adele</a></li>
-    <li><a href="#">Agnes</a></li>
+                        </p>
+                        <ul id="myUL">
+                            <li><a href="#" class="list-header">A</a></li>
+                            <li><a href="#">Adele</a></li>
+                            <li><a href="#">Agnes</a></li>
 
-    <li><a href="#" class="list-header">B</a></li>
-    <li><a href="#">Billy</a></li>
-    <li><a href="#">Bob</a></li>
+                            <li><a href="#" class="list-header">B</a></li>
+                            <li><a href="#">Billy</a></li>
+                            <li><a href="#">Bob</a></li>
 
-    <li><a href="#" class="list-header">C</a></li>
-    <li><a href="#">Calvin</a></li>
-    <li><a href="#">Christina</a></li>
-    <li><a href="#">Cindy</a></li>
-</ul>
-<p></p>
-</div>
-<div id="menu1filter_list_demo" class="tab-pane fade">
-    <p class="component"></p><pre>    &lt;input type="text" id="myInput" onkeyup="filterNames()" placeholder="Search for names.."&gt;
+                            <li><a href="#" class="list-header">C</a></li>
+                            <li><a href="#">Calvin</a></li>
+                            <li><a href="#">Christina</a></li>
+                            <li><a href="#">Cindy</a></li>
+                        </ul>
+                        <p></p>
+                    </div>
+                    <div id="menu1filter_list_demo" class="tab-pane fade">
+                        <p class="component"></p>
+                        <pre>    &lt;input type="text" id="myInput" onkeyup="filterNames()" placeholder="Search for names.."&gt;
     
     &lt;ul id="myUL"&gt;
       &lt;li&gt;&lt;a href="#" class="list-header"&gt;A&lt;/a&gt;&lt;/li&gt;
@@ -84,10 +92,11 @@
       &lt;li&gt;&lt;a href="#"&gt;Cindy&lt;/a&gt;&lt;/li&gt;
     &lt;/ul&gt;
   </pre>
-    <p></p>
-</div>
-<div id="menu2filter_list_demo" class="tab-pane fade">
-    <p class="component"></p><pre>window.filterNames = function() {
+                        <p></p>
+                    </div>
+                    <div id="menu2filter_list_demo" class="tab-pane fade">
+                        <p class="component"></p>
+                        <pre>window.filterNames = function() {
     // Declare variables
     var input, filter, ul, li, a, i;
     input = document.getElementById('myInput');
@@ -105,10 +114,11 @@
         }
     }
 }</pre>
-    <p></p>
-</div>
-<div id="menu3filter_list_demo" class="tab-pane fade">
-    <p class="component"></p><pre>#myInput {
+                        <p></p>
+                    </div>
+                    <div id="menu3filter_list_demo" class="tab-pane fade">
+                        <p class="component"></p>
+                        <pre>#myInput {
     width: 100%; /* Full-width */
     font-size: 16px; /* Increase font-size */
     padding: 12px 20px 12px 40px; /* Add some padding */
@@ -143,20 +153,20 @@
 #myUL li a:hover:not(.list-header) {
     background-color: #eee; /* Add a hover effect to all links, except for headers */
 }</pre>
-    <p></p>
-</div>
-</div>
-</div>
-<div class="col-md-4 panel panel-default readme">
-    <h1 id="the-ingrooves-filter-list">The Ingrooves Filter List</h1>
-    <p>This list is a lightly modified component that was respectfully copy-pasted from <em>W3Schools</em>.</p>
-    <ul>
-        <li>Find out more at <a href="http://www.w3schools.com/howto/howto_js_filter_lists.asp">http://www.w3schools.com/howto/howto_js_filter_lists.asp</a></li>
-    </ul>
+                        <p></p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 panel panel-default readme">
+                <h1 id="the-ingrooves-filter-list">The Ingrooves Filter List</h1>
+                <p>This list is a lightly modified component that was respectfully copy-pasted from <em>W3Schools</em>.</p>
+                <ul>
+                    <li>Find out more at <a href="http://www.w3schools.com/howto/howto_js_filter_lists.asp">http://www.w3schools.com/howto/howto_js_filter_lists.asp</a></li>
+                </ul>
 
-</div>
-</div>
-</div>
+            </div>
+        </div>
+    </div>
 </body>
 <div></div>
 

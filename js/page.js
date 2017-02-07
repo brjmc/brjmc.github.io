@@ -10,5 +10,10 @@ var resizeAside = function () {
     }
 }
 
+$('a.link-to-contact').click(function(e){
+    e.preventDefault();
+    $('a[href="#contact"]').tab('show');
+});
+
 window.onresize = resizeAside;
 resizeAside();

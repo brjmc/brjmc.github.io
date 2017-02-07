@@ -20,10 +20,13 @@ body{
 	padding: 0;
 }
 
-#see-also{
+.meta-note{
 	margin-top: 2rem;
 	margin-left:2rem;
 	font-size: 0.875em;
+}
+section>.meta-note{
+	font-size: inherit;
 }
 
 #main-container{
@@ -43,7 +46,7 @@ li{
 	background-image: linear-gradient(to top, #a7d7f9 10%, #f8f9fa 90%);
 	padding-bottom:0;
 	}
-li.read, li.resume{
+li.read, li.contact{
 	padding-left:1px;
 }
 
