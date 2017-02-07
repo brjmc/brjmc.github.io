@@ -1,0 +1,64 @@
+.modal {
+  display: none;
+}
+.modal .backdrop {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.modal .modal-box {
+  /* Permalink - use to edit and share this gradient: http://colorzilla.com/gradient-editor/#f9f9f9+0,f9f9f9+16,e5e5e5+79,e8e8e8+100 */
+  background: #f9f9f9;
+  /* Old browsers */
+  background: -moz-linear-gradient(top, #f9f9f9 0%, #f9f9f9 16%, #e5e5e5 79%, #e8e8e8 100%);
+  /* FF3.6-15 */
+  background: -webkit-linear-gradient(top, #f9f9f9 0%, #f9f9f9 16%, #e5e5e5 79%, #e8e8e8 100%);
+  /* Chrome10-25,Safari5.1-6 */
+  background: linear-gradient(to bottom, #f9f9f9 0%, #f9f9f9 16%, #e5e5e5 79%, #e8e8e8 100%);
+  /* W3C, IE10+, FF16+, Chrome26+, Opera12+, Safari7+ */
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#f9f9f9', endColorstr='#e8e8e8', GradientType=0);
+  /* IE6-9 */
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  border-radius: 10px;
+  box-shadow: black 0px 0px 25px;
+  width: 1000px;
+  max-height: 80%;
+}
+.modal .modal-box .btnClose {
+  cursor: pointer;
+  position: absolute;
+  right: -15px;
+  top: -15px;
+  width: 36px;
+  height: 36px;
+  font-size: 30px;
+  line-height: 30px;
+  font-weight: bold;
+  border-style: solid;
+  border-radius: 30px;
+  border-width: 3px;
+  border-color: white;
+  color: white;
+  background-color: black;
+}
+.modal .modal-box .btnClose:focus {
+  outline: 0;
+}
+.modal .modal-box .btnClose:hover {
+  border-color: black;
+  color: black;
+  background-color: white;
+}
+.modal .modal-box .modal-inner {
+  padding: 50px;
+  overflow: auto;
+  max-height: calc(100% -  100px );
+}
