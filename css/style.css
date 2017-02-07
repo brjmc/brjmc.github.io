@@ -10,6 +10,7 @@ body{
 	width: 90%;
 	background: #fff;
 	padding: 0;
+	margin-bottom:80px;
 }
 #header-container{
 	height: 60px;
@@ -34,7 +35,8 @@ section>.meta-note{
 	display: table;
 	min-height: 700px;
 	border-left: 1px solid #a7d7f9;
-	padding: 0 24px;
+	border-bottom: 1px solid #a7d7f9;
+	padding: 0 24px 14px;
 }
 
 li{
