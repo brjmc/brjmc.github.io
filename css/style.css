@@ -33,7 +33,6 @@ section>.meta-note{
 #main-container{
 	width: 100%;
 	display: table;
-	min-height: 700px;
 	border-left: 1px solid #a7d7f9;
 	border-bottom: 1px solid #a7d7f9;
 	padding: 0 24px 14px;

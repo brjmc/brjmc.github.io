@@ -15,5 +15,13 @@ $('a.link-to-contact').click(function(e){
     $('a[href="#contact"]').tab('show');
 });
 
+$('a#mail').click(function(e){
+    e.preventDefault();
+    var provider = 'gmail.com';
+    var me = 'brendan.mckay';
+    prompt('Copy address to clipboard',me+'@'+provider);
+    return false
+});
+
 window.onresize = resizeAside;
 resizeAside();
