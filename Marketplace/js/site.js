@@ -3,6 +3,7 @@ var inactiveTime = 0;
 var timer;
 var cartObj;
 var products = {};
+var stupidFlag = false;
 
 //link to cartObj.addToCart, as required by outline
 function addToCart(productName) {
@@ -15,6 +16,7 @@ function removeFromCart(productName) {
 
 //Load products list DOM with given products object
 function loadProductsDOM(_products) {
+    addHello();
     $.each(_products, function (index, value) {
         $("ul#productList").append($("<li/>", {
             "class": "product",

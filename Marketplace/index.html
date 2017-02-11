@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <!--<meta name="viewport" content="width=device-width, initial-scale=1.0">-->
 
-    <title>Assignment3-Group9-L1A</title>
+    <title>UBC Marketplace</title>
     <meta name="description" content="UBC CPEN 400A Assignment 3 by L1A Group 9 Jae and Brendan" />
     <link href="css/loader.min.css" rel="stylesheet" />
     <link href="css/modal.min.css" rel="stylesheet" />
@@ -18,9 +18,20 @@
     <script src="js/modal.js"></script>
     <script src="js/productLoader.js"></script>
     <script src="js/site.js" type="text/javascript"></script>
+    <script src="js/demo.js" type="text/javascript" defer></script>
 </head>
 
 <body>
+    <div id="intro-container" hidden>
+        <div id="intro-overlay" ></div>
+        <div id="hello">
+            <b>The Marketplace</b> is a full stack web application build for a computer engineering course at UBC. You are looking
+            at a simplified version that receives randomized information from a simple server. The actual, complete version (the
+            code for which lives <a href="">here</a>), makes POST and GET requests to a more complex backend that authorizes
+            requests and stores product information in a MongoDB database. Thanks for looking!
+            <button id="closeHello" class="btnClose">X</button>
+        </div>
+    </div>
     <button id="cartButton">Cart ( $<span class="totalPrice">0</span> )</button>
     <div id="header">
         <div id="logo" class="inline-block">
@@ -142,7 +153,7 @@
                 <div></div>
                 <div></div>
             </div>-->
-                Confirming final price and availability...
+            Confirming final price and availability...
         </div>
     </div>
 </body>
