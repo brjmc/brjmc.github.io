@@ -120,7 +120,7 @@ header h1#title{
 	font-size: 0.775em;
 }
 
-#main>article{
+article{
 	margin-top: 1rem;
 	position: relative;
 	font-size: 0.875em;
