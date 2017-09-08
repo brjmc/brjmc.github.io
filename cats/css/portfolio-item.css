@@ -1,0 +1,78 @@
+/*!
+ * Start Bootstrap - Portfolio Item (https://startbootstrap.com/template-overviews/portfolio-item)
+ * Copyright 2013-2017 Start Bootstrap
+ * Licensed under MIT (https://github.com/BlackrockDigital/startbootstrap-portfolio-item/blob/master/LICENSE)
+ */
+ html, body {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  padding: 0 !important;
+  margin-top: 0;
+  background: rgba(253, 252, 249, 0.71);
+}
+
+.lil-nav {
+  position: absolute;
+  top: 0;
+  right: 0;
+  line-height: 100%;
+  display: table-cell;
+  text-align: center;
+  margin: 1em;
+}
+
+.lil-nav a {
+  color: rgba(8, 5, 5, 0.31);
+  font-weight: 700;
+}
+  
+
+
+.navbar.opaque {
+  opacity: 0.5;
+}
+
+.frame-container {
+  text-align: center;
+}
+
+.picture-frame {
+  display: inline-block;
+  padding-bottom: 2em;
+}
+
+.header {
+  margin-bottom: 2em;
+  position: relative;
+  display: table;
+  width: 100%;
+  height: 100%;
+  background: url(../media/_DSC3851.jpg) no-repeat center center scroll;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+.text-vertical-center {
+  display: table-cell;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.text-vertical-center h1 {
+  font-size: 4.5em;
+  font-weight: 700;
+  margin: 0;
+  padding: 0;
+  max-width: 58em;
+}
+
+@media (min-width: 992px) {
+  body {
+    padding-top: 56px;
+  }
+}

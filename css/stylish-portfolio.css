@@ -20,14 +20,7 @@ body {
   display: table-cell;
   text-align: center;
   vertical-align: middle;
-  /* text-shadow: 2px 1px 2px rgb(151,112,65); */
 }
-
-/* .text-vertical-center h3.my-tagline{
-  font-style: italic;
-} */
-
-
 
 .text-vertical-center h1 {
   font-size: 4.5em;
@@ -40,8 +33,6 @@ body {
 /* .text-vertical-center span {
   position: relative;
 } */
-  
-
 
 /* Custom Button Styles */
 
