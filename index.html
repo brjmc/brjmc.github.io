@@ -2,16 +2,27 @@
 <html lang="en">
 
 <head>
-	<title>Brendan McKay - Brendanpedia</title>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<link type="text/css" rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-	<link type="text/css" rel="stylesheet" href="css/style.css">
-	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
-	<script src="js/page.js" defer="true"></script>
-	<link rel="shortcut icon" href="Icons/favicon.ico?">
-	<script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <title>Stylish Portfolio - Start Bootstrap Template</title>
+
+  <!-- Bootstrap Core CSS -->
+  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Custom Fonts -->
+  <link href="vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+  <link href="https://fonts.googleapis.com/css?family=Oxygen+Mono" rel="stylesheet">  
+
+  <!-- Custom CSS -->
+  <link href="css/stylish-portfolio.css" rel="stylesheet">
+
+  <!-- Thanks Google Fonts -->
+
+  <script>
 		(function (i, s, o, g, r, a, m) {
 		i['GoogleAnalyticsObject'] = r; i[r] = i[r] || function () {
 			(i[r].q = i[r].q || []).push(arguments)
@@ -21,162 +32,100 @@
 
 		ga('create', 'UA-92016456-1', 'auto');
 		ga('send', 'pageview');
-
-	</script>
+  </script>
+  
 </head>
 
 <body>
+  <!-- Navigation -->
+  <a id="menu-toggle" href="#" class="btn btn-dark btn-lg toggle">
+      <i class="fa fa-bars"></i>
+    </a>
+  <nav id="sidebar-wrapper">
+    <ul class="sidebar-nav">
+      <a id="menu-close" href="#" class="btn btn-light btn-lg pull-right toggle">
+          <i class="fa fa-times"></i>
+        </a>
+      <li class="sidebar-brand">
+        <a class="js-scroll-trigger" href="#top">brendanmckay.ca</a>
+      </li>
+      <li>
+        <a class="js-scroll-trigger" href="about">About</a>
+      </li>
+      <li>
+        <a class="js-scroll-trigger" href="cats">Cat Photography</a>
+      </li>
+      <li>
+        <a class="js-scroll-trigger" href="#contact" onclick=$("#menu-close").click();>Contact</a>
+      </li>
+    </ul>
+  </nav>
 
-	<div id="container" class="pull-right">
-		<div id="header-container">
-			<ul class="nav nav-tabs">
-				<li class="active read"><a data-toggle="tab" href="#read">Read</a></li>
-				<li class="pull-right"><a data-toggle="tab" href="#projects">Projects</a></li>
-				<li class="contact pull-right"><a data-toggle="tab" href="#contact">Contact</a></li>
-			</ul>
-		</div>
-		<div id="main-container" class="col-md-12">
-			<div class="tab-content">
-				<div id="read" class="tab-pane fade in active">
-					<div id="main" class="wrapper clearfix">
-						<header>
-							<h1 id="title">Brendan McKay</h1>
-							<p id="title-sub">Not from Wikipedia, the free encyclopedia</p>
-							<p class="meta-note">
-								<i>This article is about the unemployed computer science grad. For the computer science researcher see
-									<a href="https://en.wikipedia.org/wiki/Brendan_McKay">Brendan McKay (computer science)</a>.
-								</i>
-							</p>
-						</header>
+  <!-- Header -->
+  <header class="header" id="top">
+    <div class="text-vertical-center">
+      <h1 class="name-tag" id="terminal-greeting"></h1>    
+      <h3 class="my-tagline" id="terminal-bio"></h3>
+      <br>
+    </div>
+  </header>
 
+  <!-- Footer -->
+  <footer id="contact">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-10 mx-auto text-center">
+          <h4>
+            <strong>Brendan McKay</strong>
+          </h4>
 
-						<article>
-							<aside id="infobox" class="col-sm-3">
-								<table>
-									<tbody>
+          <ul class="list-unstyled">
+            <li>
+              <i class="fa fa-phone fa-fw"></i> (778) 903-4609</li>
+            <li>
+              <i class="fa fa-envelope-o fa-fw"></i>
+              <a href="mailto:brendanmckay+bm.ca@gmail.com">brendan.mckay@gmail.com</a>
+            </li>
+          </ul>
+          <br>
+          <ul class="list-inline">
+            <li class="list-inline-item">
+              <a href="#">
+                  <i class="fa fa-facebook fa-fw fa-3x"></i>
+                </a>
+            </li>
+            <li class="list-inline-item">
+              <a href="#">
+                  <i class="fa fa-twitter fa-fw fa-3x"></i>
+                </a>
+            </li>
+            <li class="list-inline-item">
+              <a href="#">
+                  <i class="fa fa-dribbble fa-fw fa-3x"></i>
+                </a>
+            </li>
+          </ul>
+          <hr class="small">
+          <p class="text-muted">Copyright &copy; brendanmckay.ca 2017</p>
+        </div>
+      </div>
+    </div>
+    <a id="to-top" href="#top" class="btn btn-dark btn-lg js-scroll-trigger">
+        <i class="fa fa-chevron-up fa-fw fa-1x"></i>
+      </a>
+  </footer>
 
-										<tr>
-											<th colspan="2" class="infobox-title">
-												<span>Brendan McKay</span>
-											</th>
-										</tr>
+  <!-- Bootstrap core JavaScript -->
+  <script src="vendor/jquery/jquery.min.js"></script>
+  <script src="vendor/popper/popper.min.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.min.js"></script>
 
-										<tr>
-											<td colspan="2" class="subtitle">
-												<div class="headshot">
-													<img src="media/me.jpg"><br>
-												</div>
-												<span>McKay in <a href="https://en.wikipedia.org/wiki/Dumbo,_Brooklyn">Dumbo, Brooklyn</a></span>
-											</td>
-										</tr>
-										<tr>
-											<th>Born</th>
-											<td>
-												<span>Brendan Jacob McKay</span><br>
-												<span>November 30, 1985 (age 31)</span><br>
-												<span><a href="https://en.wikipedia.org/wiki/Cranbrook,_British_Columbia">Cranbrook, BC, Canada</a></span>
-											</td>
-										</tr>
-										<tr>
-											<th>Education</th>
-											<td>
-												<span>University of British Columbia</span><br>
-												<span>University of Victoria</span><br>
-												<span>Mount Baker Secondary School</span>
-											</td>
-										</tr>
-										<tr>
-											<th>Experience</th>
-											<td>
-												<span>Software Developer (Co-op) at <a href="http://www.ingrooves.com/">INgrooves Music Group</a></span><br>
-												<span><a href="https://en.wikipedia.org/wiki/Teaching_assistant#Undergraduate">Teaching Assistant</a> at the University of British Columbia</span><br>
-												<span>
-									<a href="https://en.wikipedia.org/wiki/Truck_driver">Truck Driver</a> 
-									at <a "" href="http://www.hughsontrucking.com/">Hughson Trucking<a>
-								</span>
-											</td>
-										</tr>
+  <!-- Plugin JavaScript -->
+  <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
 
-									</tbody>
-								</table>
-							</aside>
-
-							<p><b>Brendan McKay</b> is an unemployed computer science graduate from the
-								<a href="https://en.wikipedia.org/wiki/University_of_British_Columbia">University of British Columbia.</a>
-							</p>
-							<section>
-								<h3>Career</h3>
-								<p class="meta-note">
-									<i>
-										This section is a <a href="https://en.wikipedia.org/wiki/Wikipedia:Stub">stub</a>. You can help expand it by
-										<a class="link-to-contact" href="#">bringing Brendan in for an interview</a>.
-									</i>
-								</p>
-								<b>INgrooves Music Group</b><br>
-								<p>McKay joined INgrooves Music Group as a Software Developer (Co-op) in January 2016. The beginning of this placement
-									was spent fixing bugs, making minor UI tweaks, and learning Angular. Eventually he moved on to designing and implementing
-									new frontend components, making changes to APIs, and modifying SQL and MongoDB databases. McKay created the <a
-										"" href="UI_Catalog/index.html">UI Catalog</a> as a place for developers at INgrooves to share and document frontend
-									components. In September of 2016 McKay returned to UBC to complete his degree.</p>
-								<b>The University of British Columbia</b><br>
-								<p>After leaving INgrooves, McKay accepted a position as a Teaching Assistant at the University of British Columbia.
-									He used this opportunity to sharpen his technical communication skills and refresh his knowledge of <a href="https://en.wikipedia.org/wiki/C_(programming_language)">C</a>									and computer science fundamentals.
-								</p>
-							</section>
-							<section>
-								<h3>Education</h3>
-								<b>The University of British Columbia</b><br>
-								<p>In 2014, after being out of school for three years, McKay was accepted into the <a "" href="https://www.cs.ubc.ca/students/undergrad/programs/second-degree/what-bcs-ics">Bachelor of Computer Science</a>									program at the University of British Columbia. He completed his coursework for the degree in December 2016. The
-									creation of the
-									<a "" href="Marketplace/index.html">Market place app</a>, a simple full stack web application, was the highlight
-									of his final semester at UBC.</p>
-								<b>The University of Victoria</b><br>
-								<p>McKay studied philosophy at the University of Victoria. His primary interests were aesthetics, ethics, and <a href="https://en.wikipedia.org/wiki/Analytic_philosophy">cool analytic stuff</a>									like Philosophy of Time and Philosophy of Film. It was at UVIC that McKay took his <a "" href="https://heat.csc.uvic.ca/coview/outline/2017/Spring/CSC/110">first computer science course</a>.
-								</p>
-							</section>
-							<footer>
-								<h3>References</h3>
-								<p>References are available upon request.</p>
-							</footer>
-						</article>
-
-
-
-					</div>
-				</div>
-				<div id="contact" class="tab-pane fade">
-					<header>
-						<h1>Contact</h1>
-					</header>
-					<article>
-
-						<span><a href="media/bjm_resume.pdf"><b>Resume</b></a></span><br>
-
-						<span><a id="mail" href="#"><b>Mail</b></a></span>
-
-					</article>
-				</div>
-				<div id="projects" class="tab-pane fade">
-					<header>
-						<h1>Projects</h1>
-					</header>
-					<article>
-						<section>
-							<h3>U.I. Component Catalog</h3>
-							<p>The <a class="external" href="UI_Catalog/index.html">U.I. Catalog</a> was McKay's co-op project at INgrooves Music
-								Group. It was created using Node.js and is meant to promote code reuse by providing a single place to see all available
-								components and example implementations.</p>
-						</section>
-						<section>
-							<h3>Full Stack Marketplace</h3>
-							<p>The <a class="external" href="Marketplace/index.html">Marketplace</a>is a full stack retail application with a (mostly)
-								vanilla js frontend and a Node.js/MongoDB backend. It was created for a computer engineering course at UBC.</p>
-						</section>
-					</article>
-				</div>
-			</div>
-		</div>
-	</div>
+  <!-- Custom scripts for this template -->
+  <script src="js/stylish-portfolio.js"></script>
+  <script src="js/faux-input.js"></script>  
 
 </body>
 
