@@ -18,6 +18,9 @@ function removeFromCart(productName) {
 function loadProductsDOM(_products) {
     addHello();
     $.each(_products, function (index, value) {
+        var url = 'images/' + value["url"].split('/').pop();
+        console.log(url)
+        
         $("ul#productList").append($("<li/>", {
             "class": "product",
             "data-productname": index,
@@ -26,7 +29,7 @@ function loadProductsDOM(_products) {
             "html": $("<div/>", {
                 "class": "product-inner",
                 "html": $("<img/>", {
-                    "src": value["url"]
+                    "src": url
                 }).prop("outerHTML") +
                         $("<div/>", {
                             "class": "detail",
