@@ -5,7 +5,7 @@
   <title>GR20 Route Planner</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    /* Basic styling for a clean, accessible interface */
+    /* Basic styling */
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
@@ -29,7 +29,7 @@
       margin-left: auto;
       margin-right: auto;
     }
-    /* Toggle button for refuges */
+    /* Toggle button */
     #toggleRefugeDisplay {
       display: block;
       margin: 10px auto 20px;
@@ -87,8 +87,8 @@
       <option value="N2S" selected>North-to-South (Starts at Calenzana)</option>
       <option value="S2N">South-to-North (Starts at Conca)</option>
     </select>
-    <!-- Toggle Button -->
-    <button id="toggleRefugeDisplay">Show Only Selected Refuges</button>
+    <!-- Toggle button for markers -->
+    <button id="toggleRefugeDisplay">Show All Stops</button>
 
     <div class="grid" id="refugeGrid"></div>
 
@@ -97,8 +97,8 @@
       <thead>
         <tr>
           <th>Day</th>
-          <th>Start Refuge</th>
-          <th>End Refuge</th>
+          <th>Start Stop</th>
+          <th>End Stop</th>
           <th>Distance (km)</th>
           <th>Elevation Gain (m)</th>
           <th>Elevation Loss (m)</th>
@@ -114,26 +114,48 @@
   <!-- Include Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    /* Data Setup */
-    const refugesN2S = [
-      "Calenzana",
-      "Refuge d'Ortu di u Piobbu",
-      "Refuge de Carrozzu",
-      "Ascu Stagnu (Haut Asco)",
-      "Refuge de Tighjettu",
-      "Refuge de Ciottulu di i Mori",
-      "Refuge de Manganu",
-      "Refuge de Petra Piana",
-      "Refuge de l'Onda",
-      "Vizzavona",
-      "Bergeries d'E Capannelle",
-      "Refuge de Prati",
-      "Refuge d'Usciolu",
-      "Refuge d'Asinau",
-      "Refuge de Paliri",
-      "Conca"
+    /******** Data Setup ********/
+    // Original stops (from GR20 standard list, 16 stops)
+    const originalStops = [
+      { name: "Calenzana", type: "village", lat: 42.5081, lng: 8.8553, origIndex: 0 },
+      { name: "Refuge d'Ortu di u Piobbu", type: "refuge", lat: 42.4653, lng: 8.9069, origIndex: 1 },
+      { name: "Refuge de Carrozzu", type: "refuge", lat: 42.4262, lng: 8.9005, origIndex: 2 },
+      { name: "Ascu Stagnu (Haut Asco)", type: "refuge", lat: 42.4035, lng: 8.9223, origIndex: 3 },
+      { name: "Refuge de Tighjettu", type: "refuge", lat: 42.3623, lng: 8.9088, origIndex: 4 },
+      { name: "Refuge de Ciottulu di i Mori", type: "refuge", lat: 42.3350, lng: 8.8681, origIndex: 5 },
+      { name: "Refuge de Manganu", type: "refuge", lat: 42.2199, lng: 8.9804, origIndex: 6 },
+      { name: "Refuge de Petra Piana", type: "refuge", lat: 42.1981, lng: 9.0524, origIndex: 7 },
+      { name: "Refuge de l'Onda", type: "refuge", lat: 42.1528, lng: 9.0725, origIndex: 8 },
+      { name: "Vizzavona", type: "village", lat: 42.1286, lng: 9.1333, origIndex: 9 },
+      { name: "Bergeries d'E Capannelle", type: "sheepfold", lat: 42.0779, lng: 9.1497, origIndex: 10 },
+      { name: "Refuge de Prati", type: "refuge", lat: 42.0086, lng: 9.2183, origIndex: 11 },
+      { name: "Refuge d'Usciolu", type: "refuge", lat: 41.9351, lng: 9.2060, origIndex: 12 },
+      { name: "Refuge d'Asinau", type: "refuge", lat: 41.8415, lng: 9.2144, origIndex: 13 },
+      { name: "Refuge de Paliri", type: "refuge", lat: 41.7945, lng: 9.2596, origIndex: 14 },
+      { name: "Conca", type: "village", lat: 41.7350, lng: 9.3333, origIndex: 15 }
     ];
-
+    // Extended stops including additional sheepfolds:
+    const stopsN2SExtended = [
+      originalStops[0],
+      originalStops[1],
+      originalStops[2],
+      originalStops[3],
+      originalStops[4],
+      originalStops[5],
+      originalStops[6],
+      { name: "Bergeries d'A Basseta", type: "sheepfold", lat: 42.2150, lng: 8.9850 },
+      originalStops[7],
+      originalStops[8],
+      originalStops[9],
+      originalStops[10],
+      originalStops[11],
+      originalStops[12],
+      { name: "Bergeries d'I Croci", type: "sheepfold", lat: 41.8900, lng: 9.2100 },
+      originalStops[13],
+      originalStops[14],
+      originalStops[15]
+    ];
+    // For stage data, we use the original GR20 stage data (15 legs)
     const stagesN2S = [
       { distance: 11, elevationGain: 1450, elevationLoss: 250, highlights: "Calenzana to Refuge d'Ortu di u Piobbu" },
       { distance: 8,  elevationGain: 720,  elevationLoss: 950, highlights: "Ortu di u Piobbu to Refuge de Carrozzu" },
@@ -151,62 +173,75 @@
       { distance: 9,  elevationGain: 665,  elevationLoss: 545,  highlights: "Asinau to Refuge de Paliri" },
       { distance: 12, elevationGain: 700,  elevationLoss: 1670, highlights: "Paliri to Conca" }
     ];
-
-    // Coordinates for each refuge (North-to-South)
-    const coordinatesN2S = [
-      {lat: 42.5081, lng: 8.8553},    // Calenzana
-      {lat: 42.4653, lng: 8.9069},    // Refuge d'Ortu di u Piobbu
-      {lat: 42.4262, lng: 8.9005},    // Refuge de Carrozzu
-      {lat: 42.4035, lng: 8.9223},    // Ascu Stagnu (Haut Asco)
-      {lat: 42.3623, lng: 8.9088},    // Refuge de Tighjettu
-      {lat: 42.3350, lng: 8.8681},    // Refuge de Ciottulu di i Mori
-      {lat: 42.2199, lng: 8.9804},    // Refuge de Manganu
-      {lat: 42.1981, lng: 9.0524},    // Refuge de Petra Piana
-      {lat: 42.1528, lng: 9.0725},    // Refuge de l'Onda
-      {lat: 42.1286, lng: 9.1333},    // Vizzavona
-      {lat: 42.0779, lng: 9.1497},    // Bergeries d'E Capannelle
-      {lat: 42.0086, lng: 9.2183},    // Refuge de Prati
-      {lat: 41.9351, lng: 9.2060},    // Refuge d'Usciolu
-      {lat: 41.8415, lng: 9.2144},    // Refuge d'Asinau
-      {lat: 41.7945, lng: 9.2596},    // Refuge de Paliri
-      {lat: 41.7350, lng: 9.3333}     // Conca
-    ];
-
+    // Global variables for current direction and stops.
     let currentDirection = "N2S";
-    let refuges = [...refugesN2S];
-    let stages = [...stagesN2S];
-    let coordinates = [...coordinatesN2S];
+    let stops = [...stopsN2SExtended];
 
-    // Global toggle: if true, display all refuges; if false, display only markers for selected stops.
-    let showAllRefuges = true;
-
-    // Maintain an array of selected stops (indices); initially only the starting refuge.
+    // Global toggle: if true, show all stops; if false, show only selected stops.
+    let showAllStops = true;
+    // Maintain an array of selected stops (indices) – initially only the first stop.
     let selectedStops = [0];
-    // Aggregated leg stats (computed in updateItinerary).
+    // Aggregated leg data will be computed in updateItinerary().
     let aggregatedLegs = [];
 
-    // Define custom icons using L.divIcon.
-    const defaultIcon = L.divIcon({
-      className: 'custom-marker',
-      html: '<div style="width:16px; height:16px; background-color: blue; border-radius: 50%; border: 2px solid white;"></div>',
-      iconSize: [16,16],
-      iconAnchor: [8,8]
-    });
-    const selectedIcon = L.divIcon({
-      className: 'custom-marker',
-      html: '<div style="width:16px; height:16px; background-color: red; border-radius: 50%; border: 2px solid white;"></div>',
-      iconSize: [16,16],
-      iconAnchor: [8,8]
-    });
+    /******** Helper Functions ********/
+    // Haversine distance between two coordinates (in km)
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371; // km
+      const dLat = (lat2-lat1) * Math.PI/180;
+      const dLon = (lon2-lon1) * Math.PI/180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+    // Get icon based on stop type and selection state.
+    function getIconForType(stop, isSelected) {
+      let color;
+      if(stop.type === "refuge") {
+        color = isSelected ? "red" : "blue";
+      } else if(stop.type === "village") {
+        color = isSelected ? "black" : "gray";
+      } else if(stop.type === "sheepfold") {
+        color = isSelected ? "darkorange" : "orange";
+      } else {
+        color = isSelected ? "red" : "blue";
+      }
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="width:16px; height:16px; background-color: ${color}; border-radius: 50%; border: 2px solid white;"></div>`,
+        iconSize: [16,16],
+        iconAnchor: [8,8]
+      });
+    }
+    // Compute leg stats between two stops.
+    // If both stops have origIndex, sum the original stage data from origIndex(start) to origIndex(end)-1.
+    // Otherwise, use the haversine distance and mark elevation as "N/A".
+    function getLegStats(start, end) {
+      if(start.origIndex !== undefined && end.origIndex !== undefined && end.origIndex > start.origIndex) {
+        let totalDistance = 0, totalGain = 0, totalLoss = 0;
+        for(let i = start.origIndex; i < end.origIndex; i++) {
+          totalDistance += stagesN2S[i].distance;
+          totalGain += stagesN2S[i].elevationGain;
+          totalLoss += stagesN2S[i].elevationLoss;
+        }
+        return { totalDistance, totalGain, totalLoss };
+      } else {
+        const d = haversineDistance(start.lat, start.lng, end.lat, end.lng);
+        return { totalDistance: parseFloat(d.toFixed(1)), totalGain: "N/A", totalLoss: "N/A" };
+      }
+    }
 
+    /******** UI Setup ********/
     function initRefugeGrid() {
       const grid = document.getElementById("refugeGrid");
       grid.innerHTML = "";
-      refuges.forEach((refuge, index) => {
+      stops.forEach((stop, index) => {
         const btn = document.createElement("button");
-        btn.textContent = refuge;
+        btn.textContent = stop.name;
         btn.setAttribute("data-index", index);
-        btn.addEventListener("click", onRefugeClick);
+        btn.addEventListener("click", onStopClick);
         grid.appendChild(btn);
       });
       updateGridSelection();
@@ -224,15 +259,15 @@
       });
     }
 
-    function onRefugeClick(e) {
+    function onStopClick(e) {
       const i = parseInt(e.target.getAttribute("data-index"));
       const lastStop = selectedStops[selectedStops.length - 1];
-      if (i === lastStop) return;
-      if (selectedStops.includes(i)) {
+      if(i === lastStop) return;
+      if(selectedStops.includes(i)) {
         const pos = selectedStops.indexOf(i);
         selectedStops = selectedStops.slice(0, pos + 1);
       } else {
-        if (i > lastStop) {
+        if(i > lastStop) {
           selectedStops.push(i);
         } else {
           return;
@@ -246,54 +281,43 @@
       const tbody = document.getElementById("itineraryTable");
       tbody.innerHTML = "";
       aggregatedLegs = [];
-      for (let k = 0; k < selectedStops.length - 1; k++) {
-        const startIndex = selectedStops[k];
-        const endIndex = selectedStops[k + 1];
-        let totalDistance = 0, totalGain = 0, totalLoss = 0;
-        let combinedHighlights = [];
-        for (let j = startIndex; j < endIndex; j++) {
-          totalDistance += stages[j].distance;
-          totalGain += stages[j].elevationGain;
-          totalLoss += stages[j].elevationLoss;
-          combinedHighlights.push(stages[j].highlights);
-        }
+      for(let k = 0; k < selectedStops.length - 1; k++) {
+        const start = stops[selectedStops[k]];
+        const end = stops[selectedStops[k+1]];
+        const stats = getLegStats(start, end);
         aggregatedLegs.push({
-          startIndex,
-          endIndex,
-          totalDistance,
-          totalGain,
-          totalLoss,
-          combinedHighlights
+          startIndex: selectedStops[k],
+          endIndex: selectedStops[k+1],
+          ...stats,
+          combinedHighlights: `${start.name} → ${end.name}`
         });
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${k+1}</td>
-          <td>${refuges[startIndex]}</td>
-          <td>${refuges[endIndex]}</td>
-          <td>${totalDistance}</td>
-          <td>${totalGain}</td>
-          <td>${totalLoss}</td>
-          <td>${combinedHighlights.join(" | ")}</td>
+          <td>${start.name}</td>
+          <td>${end.name}</td>
+          <td>${stats.totalDistance}</td>
+          <td>${stats.totalGain}</td>
+          <td>${stats.totalLoss}</td>
+          <td>${start.name} to ${end.name}</td>
         `;
         tbody.appendChild(row);
       }
       updateMap();
     }
 
-    // Initialize Leaflet map.
+    /******** Map Setup ********/
     let map = L.map('map').setView([42.64, 8.75], 11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: 'Map data &copy; OpenStreetMap contributors'
     }).addTo(map);
-
-    // Layer groups for markers and stage lines.
     let markerLayer = L.layerGroup().addTo(map);
     let legLayer = L.layerGroup().addTo(map);
 
-    // Toggle button event handler.
-    document.getElementById("toggleRefugeDisplay").addEventListener("click", function() {
-      showAllRefuges = !showAllRefuges;
-      this.textContent = showAllRefuges ? "Show Only Selected Refuges" : "Show All Refuges";
+    // Toggle display of all stops vs. only selected stops.
+    document.getElementById("toggleRefugeDisplay").addEventListener("click", function(){
+      showAllStops = !showAllStops;
+      this.textContent = showAllStops ? "Show All Stops" : "Show Only Selected Stops";
       updateMap();
     });
 
@@ -301,59 +325,52 @@
       markerLayer.clearLayers();
       legLayer.clearLayers();
 
-      // Add markers: either for all refuges or only for selected stops.
-      if (showAllRefuges) {
-        refuges.forEach((refuge, index) => {
-          const iconToUse = selectedStops.includes(index) ? selectedIcon : defaultIcon;
-          const marker = L.marker(coordinates[index], { icon: iconToUse });
-          marker.bindTooltip(refuge, { direction: 'top', permanent: false });
+      // Display markers: if showAllStops is true, show all stops; else show only selected stops.
+      if(showAllStops) {
+        stops.forEach((stop, index) => {
+          const isSelected = selectedStops.includes(index);
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, isSelected) });
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
           markerLayer.addLayer(marker);
         });
       } else {
         selectedStops.forEach(index => {
-          const marker = L.marker(coordinates[index], { icon: selectedIcon });
-          marker.bindTooltip(refuges[index], { direction: 'top', permanent: false });
+          const stop = stops[index];
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, true) });
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
           markerLayer.addLayer(marker);
         });
       }
 
-      // Draw aggregated legs as separate polylines (all in green).
-      aggregatedLegs.forEach((leg) => {
-        const legCoords = [
-          coordinates[leg.startIndex],
-          coordinates[leg.endIndex]
-        ];
+      // Draw aggregated legs as a single green polyline.
+      aggregatedLegs.forEach(leg => {
+        const start = stops[leg.startIndex];
+        const end = stops[leg.endIndex];
+        const legCoords = [[start.lat, start.lng], [end.lat, end.lng]];
         const polyline = L.polyline(legCoords, { color: 'green', weight: 5, opacity: 0.8 });
         const tooltipContent = `Distance: ${leg.totalDistance} km<br>Elevation Gain: ${leg.totalGain} m<br>Elevation Loss: ${leg.totalLoss} m`;
         polyline.bindTooltip(tooltipContent, {sticky: true});
         legLayer.addLayer(polyline);
       });
 
-      // Adjust map view to fit the markers in selectedStops.
-      const coordsToFit = selectedStops.map(index => coordinates[index]);
-      if (coordsToFit.length > 0) {
-        const bounds = L.latLngBounds(coordsToFit);
-        map.fitBounds(bounds, { padding: [20, 20] });
+      // Adjust map view to fit all selected stops.
+      const coordsToFit = selectedStops.map(index => [stops[index].lat, stops[index].lng]);
+      if(coordsToFit.length > 0) {
+        map.fitBounds(L.latLngBounds(coordsToFit), { padding: [20,20] });
       }
     }
 
-    // Listen for direction changes.
+    /******** Direction Change ********/
     document.getElementById("direction").addEventListener("change", function(e) {
       currentDirection = e.target.value;
-      if (currentDirection === "N2S") {
-        refuges = [...refugesN2S];
-        stages = [...stagesN2S];
-        coordinates = [...coordinatesN2S];
+      if(currentDirection === "N2S") {
+        // Use the extended stops in original order.
+        stops = [...stopsN2SExtended];
       } else {
-        refuges = [...refugesN2S].reverse();
-        stages = stagesN2S.slice().reverse().map(stage => ({
-          distance: stage.distance,
-          elevationGain: stage.elevationLoss,
-          elevationLoss: stage.elevationGain,
-          highlights: stage.highlights
-        }));
-        coordinates = [...coordinatesN2S].reverse();
+        // Reverse order.
+        stops = [...stopsN2SExtended].reverse();
       }
+      // Reset selected stops to the first stop.
       selectedStops = [0];
       initRefugeGrid();
       updateItinerary();
