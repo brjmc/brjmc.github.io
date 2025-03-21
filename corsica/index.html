@@ -5,7 +5,7 @@
   <title>GR20 Route Planner – Advanced Edition</title>
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <!-- Chart.js CSS (optional, Chart.js doesn’t require additional CSS) -->
+  <!-- Chart.js CSS (optional) -->
   <style>
     /* Basic styling */
     body {
@@ -177,7 +177,7 @@
       { name: "Refuge de Paliri", type: "refuge", lat: 41.7945, lng: 9.2596, alt: 1055, origIndex: 14, booking: "https://booking.example.com/paliri" },
       { name: "Conca", type: "village", lat: 41.7350, lng: 9.3333, alt: 100, origIndex: 15 }
     ];
-    // Extended stops: add additional sheepfolds.
+    // Extended stops: add additional sheepfold stops.
     const stopsN2SExtended = [
       originalStops[0],
       originalStops[1],
@@ -226,14 +226,18 @@
     let aggregatedLegs = [];
 
     /******** Helper Functions ********/
+    // Haversine distance (km)
     function haversineDistance(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) ** 2;
+      const a = Math.sin(dLat/2) ** 2 +
+                Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+                Math.sin(dLon/2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
+    // Return icon based on stop type and selection status.
     function getIconForType(stop, isSelected) {
       let color;
       if(stop.type === "refuge") {
@@ -249,11 +253,14 @@
       }
       return L.divIcon({
         className: 'custom-marker',
-        html: `<div style="width:16px; height:16px; background-color: ${color}; border-radius:50%; border:2px solid white;"></div>`,
+        html: `<div style="width:16px; height:16px; background-color:${color}; border-radius:50%; border:2px solid white;"></div>`,
         iconSize: [16,16],
         iconAnchor: [8,8]
       });
     }
+    // Compute leg stats between two stops.
+    // If both stops have origIndex, sum GR20 stage data.
+    // Otherwise, use alt difference as an approximation.
     function getLegStats(start, end) {
       if(start.origIndex !== undefined && end.origIndex !== undefined && end.origIndex > start.origIndex) {
         let totalDistance = 0, totalGain = 0, totalLoss = 0;
@@ -263,6 +270,11 @@
           totalLoss += stagesN2S[i].elevationLoss;
         }
         return { totalDistance, totalGain, totalLoss };
+      } else if(start.alt !== undefined && end.alt !== undefined) {
+        const d = haversineDistance(start.lat, start.lng, end.lat, end.lng);
+        const gain = Math.max(end.alt - start.alt, 0);
+        const loss = Math.max(start.alt - end.alt, 0);
+        return { totalDistance: parseFloat(d.toFixed(1)), totalGain: gain, totalLoss: loss };
       } else {
         const d = haversineDistance(start.lat, start.lng, end.lat, end.lng);
         return { totalDistance: parseFloat(d.toFixed(1)), totalGain: "N/A", totalLoss: "N/A" };
@@ -357,7 +369,7 @@
     }
 
     /******** Elevation Profile Chart & Time Summary ********/
-    let elevationChart; // Declare only once.
+    let elevationChart; // Declare once.
     function updateElevationChart() {
       let cumulativeDistance = 0;
       const distances = [0];
@@ -425,12 +437,8 @@
     }
 
     /******** Map Setup ********/
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: 'OSM'
-    });
-    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Esri World Imagery'
-    });
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri World Imagery' });
     let map = L.map('map', { layers: [osmLayer] }).setView([42.64, 8.75], 11);
     const baseLayers = { "OSM Standard": osmLayer, "Satellite": satelliteLayer };
     L.control.layers(baseLayers).addTo(map);
@@ -458,7 +466,7 @@
           }
           marker.bindPopup(`${stop.name}${extra}`);
           marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
-          marker.on('click', async function(e){ 
+          marker.on('click', async function(e){
             const weather = await fetchWeather(stop.lat, stop.lng);
             this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
           });
@@ -474,7 +482,7 @@
           }
           marker.bindPopup(`${stop.name}${extra}`);
           marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
-          marker.on('click', async function(e){ 
+          marker.on('click', async function(e){
             const weather = await fetchWeather(stop.lat, stop.lng);
             this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
           });
