@@ -2,96 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>GR20 Route Planner</title>
+  <title>GR20 Route Planner – Advanced Edition</title>
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Chart.js CSS (optional, Chart.js doesn’t require CSS but we add our own styles) -->
   <style>
     /* Basic styling */
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
-      background-color: #fafafa;
+      margin: 0;
+      padding: 0;
+      background: #fafafa;
       color: #333;
+    }
+    .container {
+      max-width: 960px;
+      margin: 20px auto;
+      padding: 0 10px;
     }
     h1, h2 {
       text-align: center;
     }
-    .container {
-      max-width: 900px;
-      margin: auto;
-    }
-    label, select {
+    label, select, button {
       font-size: 16px;
     }
-    select {
+    select, button {
       padding: 8px;
-      margin-bottom: 10px;
+      margin: 5px auto;
       display: block;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    /* Toggle button */
-    #toggleRefugeDisplay {
-      display: block;
-      margin: 10px auto 20px;
-      padding: 8px 16px;
-      font-size: 14px;
       cursor: pointer;
     }
+    /* Grid for stops */
     .grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
       justify-content: center;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
     }
     .grid button {
-      padding: 10px 15px;
-      font-size: 14px;
+      padding: 6px 10px;
       border: 1px solid #ccc;
-      background-color: #f9f9f9;
-      cursor: pointer;
-      transition: background-color 0.2s;
+      background: #f9f9f9;
+      transition: background 0.2s;
     }
     .grid button.selected {
-      background-color: #007BFF;
+      background: #007BFF;
       color: #fff;
       border-color: #007BFF;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 10px;
     }
     th, td {
       border: 1px solid #ddd;
-      padding: 8px;
+      padding: 6px;
       text-align: center;
       font-size: 14px;
     }
     th {
-      background-color: #f2f2f2;
+      background: #f2f2f2;
     }
     /* Map styling */
     #map {
       height: 400px;
-      width: 100%;
-      margin: 20px auto;
+      margin: 20px 0;
+    }
+    /* Chart container */
+    #chartContainer {
+      margin: 20px 0;
+    }
+    canvas {
+      background: #fff;
+      border: 1px solid #ccc;
+    }
+    /* Legend styling */
+    .info.legend {
+      background: white;
+      padding: 6px 8px;
+      font: 14px/16px Arial, Helvetica, sans-serif;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+    .info.legend i {
+      width: 16px;
+      height: 16px;
+      float: left;
+      margin-right: 8px;
+      opacity: 0.9;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+    /* Buttons for GPX Export and Custom Stop */
+    .extra-buttons {
+      text-align: center;
+      margin: 10px 0;
+    }
+    .extra-buttons button {
+      margin: 0 5px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    /* Responsive adjustments */
+    @media(max-width:600px){
+      th, td { font-size: 12px; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>GR20 Route Planner</h1>
+    <h1>GR20 Route Planner – Advanced Edition</h1>
     <label for="direction">Select Direction:</label>
-    <select id="direction">
+    <select id="direction" aria-label="Select Direction">
       <option value="N2S" selected>North-to-South (Starts at Calenzana)</option>
       <option value="S2N">South-to-North (Starts at Conca)</option>
     </select>
-    <!-- Toggle button for markers -->
-    <button id="toggleRefugeDisplay">Show All Stops</button>
-
-    <div class="grid" id="refugeGrid"></div>
-
+    <!-- Toggle Button for displaying stops -->
+    <button id="toggleStopDisplay" aria-label="Toggle stop display">Show All Stops</button>
+    <!-- Extra buttons -->
+    <div class="extra-buttons">
+      <button id="exportGPX" aria-label="Export GPX">Export GPX</button>
+      <button id="addCustomStop" aria-label="Add custom stop">Add Custom Stop</button>
+    </div>
+    <div class="grid" id="stopGrid"></div>
     <h2>Planned Itinerary</h2>
     <table>
       <thead>
@@ -103,38 +139,45 @@
           <th>Elevation Gain (m)</th>
           <th>Elevation Loss (m)</th>
           <th>Highlights</th>
+          <th>Est. Time</th>
         </tr>
       </thead>
       <tbody id="itineraryTable"></tbody>
     </table>
-
-    <div id="map"></div>
+    <!-- Elevation Profile Chart -->
+    <div id="chartContainer">
+      <canvas id="elevationChart" aria-label="Elevation Profile Chart"></canvas>
+      <div id="timeSummary" aria-label="Estimated total hiking time"></div>
+    </div>
+    <div id="map" aria-label="Map of GR20 Route"></div>
   </div>
 
-  <!-- Include Leaflet JS -->
+  <!-- External libraries: Leaflet and Chart.js -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
   <script>
     /******** Data Setup ********/
-    // Original stops (from GR20 standard list, 16 stops)
+    // Original stops from GR20 – adding altitude and a dummy booking link for refuges.
     const originalStops = [
-      { name: "Calenzana", type: "village", lat: 42.5081, lng: 8.8553, origIndex: 0 },
-      { name: "Refuge d'Ortu di u Piobbu", type: "refuge", lat: 42.4653, lng: 8.9069, origIndex: 1 },
-      { name: "Refuge de Carrozzu", type: "refuge", lat: 42.4262, lng: 8.9005, origIndex: 2 },
-      { name: "Ascu Stagnu (Haut Asco)", type: "refuge", lat: 42.4035, lng: 8.9223, origIndex: 3 },
-      { name: "Refuge de Tighjettu", type: "refuge", lat: 42.3623, lng: 8.9088, origIndex: 4 },
-      { name: "Refuge de Ciottulu di i Mori", type: "refuge", lat: 42.3350, lng: 8.8681, origIndex: 5 },
-      { name: "Refuge de Manganu", type: "refuge", lat: 42.2199, lng: 8.9804, origIndex: 6 },
-      { name: "Refuge de Petra Piana", type: "refuge", lat: 42.1981, lng: 9.0524, origIndex: 7 },
-      { name: "Refuge de l'Onda", type: "refuge", lat: 42.1528, lng: 9.0725, origIndex: 8 },
-      { name: "Vizzavona", type: "village", lat: 42.1286, lng: 9.1333, origIndex: 9 },
-      { name: "Bergeries d'E Capannelle", type: "sheepfold", lat: 42.0779, lng: 9.1497, origIndex: 10 },
-      { name: "Refuge de Prati", type: "refuge", lat: 42.0086, lng: 9.2183, origIndex: 11 },
-      { name: "Refuge d'Usciolu", type: "refuge", lat: 41.9351, lng: 9.2060, origIndex: 12 },
-      { name: "Refuge d'Asinau", type: "refuge", lat: 41.8415, lng: 9.2144, origIndex: 13 },
-      { name: "Refuge de Paliri", type: "refuge", lat: 41.7945, lng: 9.2596, origIndex: 14 },
-      { name: "Conca", type: "village", lat: 41.7350, lng: 9.3333, origIndex: 15 }
+      { name: "Calenzana", type: "village", lat: 42.5081, lng: 8.8553, alt: 300, origIndex: 0 },
+      { name: "Refuge d'Ortu di u Piobbu", type: "refuge", lat: 42.4653, lng: 8.9069, alt: 1520, origIndex: 1, booking: "https://booking.example.com/ortu" },
+      { name: "Refuge de Carrozzu", type: "refuge", lat: 42.4262, lng: 8.9005, alt: 1270, origIndex: 2, booking: "https://booking.example.com/carrozzu" },
+      { name: "Ascu Stagnu (Haut Asco)", type: "refuge", lat: 42.4035, lng: 8.9223, alt: 1420, origIndex: 3, booking: "https://booking.example.com/ascu" },
+      { name: "Refuge de Tighjettu", type: "refuge", lat: 42.3623, lng: 8.9088, alt: 1683, origIndex: 4, booking: "https://booking.example.com/tighjettu" },
+      { name: "Refuge de Ciottulu di i Mori", type: "refuge", lat: 42.3350, lng: 8.8681, alt: 1997, origIndex: 5, booking: "https://booking.example.com/ciottulu" },
+      { name: "Refuge de Manganu", type: "refuge", lat: 42.2199, lng: 8.9804, alt: 1600, origIndex: 6, booking: "https://booking.example.com/manganu" },
+      { name: "Refuge de Petra Piana", type: "refuge", lat: 42.1981, lng: 9.0524, alt: 1842, origIndex: 7, booking: "https://booking.example.com/petra" },
+      { name: "Refuge de l'Onda", type: "refuge", lat: 42.1528, lng: 9.0725, alt: 1430, origIndex: 8, booking: "https://booking.example.com/onda" },
+      { name: "Vizzavona", type: "village", lat: 42.1286, lng: 9.1333, alt: 1842, origIndex: 9 },
+      { name: "Bergeries d'E Capannelle", type: "sheepfold", lat: 42.0779, lng: 9.1497, alt: 1600, origIndex: 10 },
+      { name: "Refuge de Prati", type: "refuge", lat: 42.0086, lng: 9.2183, alt: 1820, origIndex: 11, booking: "https://booking.example.com/prati" },
+      { name: "Refuge d'Usciolu", type: "refuge", lat: 41.9351, lng: 9.2060, alt: 1750, origIndex: 12, booking: "https://booking.example.com/usciolu" },
+      { name: "Refuge d'Asinau", type: "refuge", lat: 41.8415, lng: 9.2144, alt: 1536, origIndex: 13, booking: "https://booking.example.com/asinau" },
+      { name: "Refuge de Paliri", type: "refuge", lat: 41.7945, lng: 9.2596, alt: 1055, origIndex: 14, booking: "https://booking.example.com/paliri" },
+      { name: "Conca", type: "village", lat: 41.7350, lng: 9.3333, alt: 100, origIndex: 15 }
     ];
-    // Extended stops including additional sheepfolds:
+    // Extended stops: include additional sheepfolds.
     const stopsN2SExtended = [
       originalStops[0],
       originalStops[1],
@@ -143,19 +186,19 @@
       originalStops[4],
       originalStops[5],
       originalStops[6],
-      { name: "Bergeries d'A Basseta", type: "sheepfold", lat: 42.2150, lng: 8.9850 },
+      { name: "Bergeries d'A Basseta", type: "sheepfold", lat: 42.2150, lng: 8.9850, alt: 1600 },
       originalStops[7],
       originalStops[8],
       originalStops[9],
       originalStops[10],
       originalStops[11],
       originalStops[12],
-      { name: "Bergeries d'I Croci", type: "sheepfold", lat: 41.8900, lng: 9.2100 },
+      { name: "Bergeries d'I Croci", type: "sheepfold", lat: 41.8900, lng: 9.2100, alt: 1550 },
       originalStops[13],
       originalStops[14],
       originalStops[15]
     ];
-    // For stage data, we use the original GR20 stage data (15 legs)
+    // Stage data for the GR20 (15 legs)
     const stagesN2S = [
       { distance: 11, elevationGain: 1450, elevationLoss: 250, highlights: "Calenzana to Refuge d'Ortu di u Piobbu" },
       { distance: 8,  elevationGain: 720,  elevationLoss: 950, highlights: "Ortu di u Piobbu to Refuge de Carrozzu" },
@@ -173,30 +216,29 @@
       { distance: 9,  elevationGain: 665,  elevationLoss: 545,  highlights: "Asinau to Refuge de Paliri" },
       { distance: 12, elevationGain: 700,  elevationLoss: 1670, highlights: "Paliri to Conca" }
     ];
-    // Global variables for current direction and stops.
+    // Global variables
     let currentDirection = "N2S";
     let stops = [...stopsN2SExtended];
-
-    // Global toggle: if true, show all stops; if false, show only selected stops.
+    // Toggle to show all stops vs only selected stops
     let showAllStops = true;
-    // Maintain an array of selected stops (indices) – initially only the first stop.
+    // Selected stops (indices); initially only the first stop.
     let selectedStops = [0];
     // Aggregated leg data will be computed in updateItinerary().
     let aggregatedLegs = [];
 
     /******** Helper Functions ********/
-    // Haversine distance between two coordinates (in km)
+    // Haversine distance (in km)
     function haversineDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371; // km
-      const dLat = (lat2-lat1) * Math.PI/180;
-      const dLon = (lon2-lon1) * Math.PI/180;
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI/180;
+      const dLon = (lon2 - lon1) * Math.PI/180;
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                 Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
                 Math.sin(dLon/2) * Math.sin(dLon/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       return R * c;
     }
-    // Get icon based on stop type and selection state.
+    // Get icon based on stop type and selection status.
     function getIconForType(stop, isSelected) {
       let color;
       if(stop.type === "refuge") {
@@ -205,6 +247,8 @@
         color = isSelected ? "black" : "gray";
       } else if(stop.type === "sheepfold") {
         color = isSelected ? "darkorange" : "orange";
+      } else if(stop.type === "custom") {
+        color = isSelected ? "purple" : "violet";
       } else {
         color = isSelected ? "red" : "blue";
       }
@@ -216,8 +260,7 @@
       });
     }
     // Compute leg stats between two stops.
-    // If both stops have origIndex, sum the original stage data from origIndex(start) to origIndex(end)-1.
-    // Otherwise, use the haversine distance and mark elevation as "N/A".
+    // If both stops have origIndex, sum up GR20 stage data.
     function getLegStats(start, end) {
       if(start.origIndex !== undefined && end.origIndex !== undefined && end.origIndex > start.origIndex) {
         let totalDistance = 0, totalGain = 0, totalLoss = 0;
@@ -232,23 +275,34 @@
         return { totalDistance: parseFloat(d.toFixed(1)), totalGain: "N/A", totalLoss: "N/A" };
       }
     }
+    // Estimated time using Naismith's rule:
+    // Time (hours) = distance/5 + (elevationGain/300)*0.5
+    function estimateTime(distance, elevationGain) {
+      if(elevationGain === "N/A") return "N/A";
+      const flatTime = distance / 5;
+      const climbTime = (elevationGain / 300) * 0.5;
+      const total = flatTime + climbTime;
+      const hours = Math.floor(total);
+      const minutes = Math.round((total - hours) * 60);
+      return `${hours}h ${minutes}m`;
+    }
 
     /******** UI Setup ********/
-    function initRefugeGrid() {
-      const grid = document.getElementById("refugeGrid");
+    function initStopGrid() {
+      const grid = document.getElementById("stopGrid");
       grid.innerHTML = "";
       stops.forEach((stop, index) => {
         const btn = document.createElement("button");
         btn.textContent = stop.name;
         btn.setAttribute("data-index", index);
+        btn.setAttribute("aria-label", "Stop: " + stop.name);
         btn.addEventListener("click", onStopClick);
         grid.appendChild(btn);
       });
       updateGridSelection();
     }
-
     function updateGridSelection() {
-      const buttons = document.querySelectorAll("#refugeGrid button");
+      const buttons = document.querySelectorAll("#stopGrid button");
       buttons.forEach(btn => {
         const index = parseInt(btn.getAttribute("data-index"));
         if(selectedStops.includes(index)) {
@@ -258,7 +312,6 @@
         }
       });
     }
-
     function onStopClick(e) {
       const i = parseInt(e.target.getAttribute("data-index"));
       const lastStop = selectedStops[selectedStops.length - 1];
@@ -276,19 +329,23 @@
       updateGridSelection();
       updateItinerary();
     }
-
     function updateItinerary() {
       const tbody = document.getElementById("itineraryTable");
       tbody.innerHTML = "";
       aggregatedLegs = [];
+      let totalRouteTimeHours = 0;
       for(let k = 0; k < selectedStops.length - 1; k++) {
         const start = stops[selectedStops[k]];
         const end = stops[selectedStops[k+1]];
         const stats = getLegStats(start, end);
+        const legTime = (stats.totalDistance !== "N/A" && stats.totalGain !== "N/A")
+          ? estimateTime(stats.totalDistance, stats.totalGain) : "N/A";
+        // For overall time calculation, we could sum up time in hours if available (skipping N/A legs).
         aggregatedLegs.push({
           startIndex: selectedStops[k],
           endIndex: selectedStops[k+1],
           ...stats,
+          legTime,
           combinedHighlights: `${start.name} → ${end.name}`
         });
         const row = document.createElement("tr");
@@ -300,48 +357,166 @@
           <td>${stats.totalGain}</td>
           <td>${stats.totalLoss}</td>
           <td>${start.name} to ${end.name}</td>
+          <td>${legTime}</td>
         `;
         tbody.appendChild(row);
       }
+      updateElevationChart();
+      updateTimeSummary();
       updateMap();
     }
 
+    /******** Elevation Profile Chart & Time Summary ********/
+    let elevationChart; // Chart.js instance
+    function updateElevationChart() {
+      // Build cumulative distance and altitude from selected stops.
+      let cumulativeDistance = 0;
+      const distances = [0];
+      const altitudes = [stops[selectedStops[0]].alt || 0];
+      for(let i = 1; i < selectedStops.length; i++){
+        const prev = stops[selectedStops[i-1]];
+        const curr = stops[selectedStops[i]];
+        let d;
+        if(prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
+          // Sum stage distances
+          d = 0;
+          for(let j = prev.origIndex; j < curr.origIndex; j++){
+            d += stagesN2S[j].distance;
+          }
+        } else {
+          d = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+        }
+        cumulativeDistance += d;
+        distances.push(parseFloat(cumulativeDistance.toFixed(1)));
+        altitudes.push(curr.alt || 0);
+      }
+      const ctx = document.getElementById('elevationChart').getContext('2d');
+      if(elevationChart) {
+        elevationChart.destroy();
+      }
+      elevationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: distances,
+          datasets: [{
+            label: 'Elevation (m)',
+            data: altitudes,
+            fill: false,
+            borderColor: 'orange',
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `Elevation: ${context.parsed.y} m`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Cumulative Distance (km)' } },
+            y: { title: { display: true, text: 'Altitude (m)' } }
+          }
+        }
+      });
+    }
+    function updateTimeSummary() {
+      // Sum up estimated time for each leg (if numeric)
+      let totalMinutes = 0;
+      aggregatedLegs.forEach(leg => {
+        if(leg.legTime !== "N/A") {
+          const parts = leg.legTime.split(" ");
+          const hours = parseInt(parts[0].replace("h",""));
+          const minutes = parseInt(parts[1].replace("m",""));
+          totalMinutes += (hours * 60 + minutes);
+        }
+      });
+      const totHours = Math.floor(totalMinutes / 60);
+      const totMinutes = totalMinutes % 60;
+      document.getElementById("timeSummary").innerHTML = `<b>Total Estimated Hiking Time:</b> ${totHours}h ${totMinutes}m`;
+    }
+
     /******** Map Setup ********/
-    let map = L.map('map').setView([42.64, 8.75], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: 'Map data &copy; OpenStreetMap contributors'
-    }).addTo(map);
+    // Initialize map with two base layers.
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'OSM'
+    });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri World Imagery'
+    });
+    let map = L.map('map', {
+      layers: [osmLayer]
+    }).setView([42.64, 8.75], 11);
+    // Add layer control.
+    const baseLayers = {
+      "OSM Standard": osmLayer,
+      "Satellite": satelliteLayer
+    };
+    L.control.layers(baseLayers).addTo(map);
     let markerLayer = L.layerGroup().addTo(map);
     let legLayer = L.layerGroup().addTo(map);
 
-    // Toggle display of all stops vs. only selected stops.
-    document.getElementById("toggleRefugeDisplay").addEventListener("click", function(){
-      showAllStops = !showAllStops;
-      this.textContent = showAllStops ? "Show All Stops" : "Show Only Selected Stops";
-      updateMap();
-    });
+    /******** Weather Integration ********/
+    // When a marker is clicked, fetch weather from OpenWeatherMap.
+    // Replace YOUR_API_KEY_HERE with an actual API key.
+    async function fetchWeather(lat, lng) {
+      try {
+        const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=metric&appid=YOUR_API_KEY_HERE`);
+        const data = await response.json();
+        if(data && data.weather && data.main) {
+          return `Weather: ${data.weather[0].description}, Temp: ${data.main.temp}°C`;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      return "Weather info not available";
+    }
+    // Enhance marker popup to include weather and (for refuges) booking link.
+    async function onMarkerClick(e) {
+      const marker = e.target;
+      const latlng = marker.getLatLng();
+      const weather = await fetchWeather(latlng.lat, latlng.lng);
+      const popupContent = marker.getPopup().getContent();
+      marker.setPopupContent(popupContent + "<br>" + weather);
+    }
 
+    /******** Map Update Function ********/
     function updateMap() {
       markerLayer.clearLayers();
       legLayer.clearLayers();
-
-      // Display markers: if showAllStops is true, show all stops; else show only selected stops.
+      // Add markers.
       if(showAllStops) {
         stops.forEach((stop, index) => {
           const isSelected = selectedStops.includes(index);
           const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, isSelected) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking) {
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
           marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', onMarkerClick);
           markerLayer.addLayer(marker);
         });
       } else {
         selectedStops.forEach(index => {
           const stop = stops[index];
           const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, true) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking) {
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
           marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', onMarkerClick);
           markerLayer.addLayer(marker);
         });
       }
-
       // Draw aggregated legs as a single green polyline.
       aggregatedLegs.forEach(leg => {
         const start = stops[leg.startIndex];
@@ -352,33 +527,194 @@
         polyline.bindTooltip(tooltipContent, {sticky: true});
         legLayer.addLayer(polyline);
       });
-
-      // Adjust map view to fit all selected stops.
+      // Adjust map view.
       const coordsToFit = selectedStops.map(index => [stops[index].lat, stops[index].lng]);
       if(coordsToFit.length > 0) {
         map.fitBounds(L.latLngBounds(coordsToFit), { padding: [20,20] });
       }
     }
 
+    /******** Custom Stops & Annotations ********/
+    // Allow user to click on the map to add a custom stop.
+    map.on('click', function(e) {
+      const note = prompt("Enter a note for this custom stop:");
+      if(note) {
+        const customStop = {
+          name: "Custom: " + note,
+          type: "custom",
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+          alt: 0  // altitude unknown; could be fetched via an elevation API
+        };
+        // Save to local storage.
+        let customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+        customStops.push(customStop);
+        localStorage.setItem("customStops", JSON.stringify(customStops));
+        // Add to stops array.
+        stops.push(customStop);
+        initStopGrid();
+        updateItinerary();
+      }
+    });
+
+    // Load custom stops from local storage on startup.
+    function loadCustomStops() {
+      const customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+      // Append them to stops (if not already included)
+      customStops.forEach(cs => {
+        // Simple check: if a stop with same name doesn't exist, add it.
+        if(!stops.find(s => s.name === cs.name)) {
+          stops.push(cs);
+        }
+      });
+    }
+
+    loadCustomStops();
+
+    /******** GPX Export ********/
+    document.getElementById("exportGPX").addEventListener("click", function(){
+      // Generate GPX file from selected stops.
+      let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GR20 Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>GR20 Planned Route</name>
+  </metadata>`;
+      // Add waypoints for each selected stop.
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+  <wpt lat="${stop.lat}" lon="${stop.lng}">
+    <name>${stop.name}</name>
+    <desc>Altitude: ${stop.alt || "N/A"} m</desc>
+  </wpt>`;
+      });
+      // Add track segments.
+      gpx += `
+  <trk>
+    <name>GR20 Route</name>
+    <trkseg>`;
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+      <trkpt lat="${stop.lat}" lon="${stop.lng}">
+        <ele>${stop.alt || 0}</ele>
+      </trkpt>`;
+      });
+      gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+      // Create blob and trigger download.
+      const blob = new Blob([gpx], { type: "application/gpx+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "GR20_route.gpx";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    /******** Elevation Chart & Estimated Time ********/
+    let elevationChart; // Chart.js instance
+    function updateElevationChart() {
+      let cumulativeDistance = 0;
+      const distances = [0];
+      const altitudes = [stops[selectedStops[0]].alt || 0];
+      for(let i = 1; i < selectedStops.length; i++){
+        const prev = stops[selectedStops[i-1]];
+        const curr = stops[selectedStops[i]];
+        let d;
+        if(prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
+          d = 0;
+          for(let j = prev.origIndex; j < curr.origIndex; j++){
+            d += stagesN2S[j].distance;
+          }
+        } else {
+          d = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+        }
+        cumulativeDistance += d;
+        distances.push(parseFloat(cumulativeDistance.toFixed(1)));
+        altitudes.push(curr.alt || 0);
+      }
+      const ctx = document.getElementById('elevationChart').getContext('2d');
+      if(elevationChart) elevationChart.destroy();
+      elevationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: distances,
+          datasets: [{
+            label: 'Elevation (m)',
+            data: altitudes,
+            fill: false,
+            borderColor: 'orange',
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: context => `Elevation: ${context.parsed.y} m`
+              }
+            }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Cumulative Distance (km)' } },
+            y: { title: { display: true, text: 'Altitude (m)' } }
+          }
+        }
+      });
+    }
+    function updateTimeSummary() {
+      let totalMinutes = 0;
+      aggregatedLegs.forEach(leg => {
+        if(leg.totalDistance !== "N/A" && leg.totalGain !== "N/A") {
+          const parts = leg.legTime.split(" ");
+          const hours = parseInt(parts[0].replace("h",""));
+          const minutes = parseInt(parts[1].replace("m",""));
+          totalMinutes += hours * 60 + minutes;
+        }
+      });
+      const totHours = Math.floor(totalMinutes / 60);
+      const totMinutes = totalMinutes % 60;
+      document.getElementById("timeSummary").innerHTML = `<b>Total Estimated Hiking Time:</b> ${totHours}h ${totMinutes}m`;
+    }
+
+    /******** Layer Control already added above ********/
+
     /******** Direction Change ********/
     document.getElementById("direction").addEventListener("change", function(e) {
       currentDirection = e.target.value;
       if(currentDirection === "N2S") {
-        // Use the extended stops in original order.
         stops = [...stopsN2SExtended];
       } else {
-        // Reverse order.
         stops = [...stopsN2SExtended].reverse();
       }
-      // Reset selected stops to the first stop.
       selectedStops = [0];
-      initRefugeGrid();
+      initStopGrid();
       updateItinerary();
     });
 
     // Initial setup.
-    initRefugeGrid();
+    initStopGrid();
     updateItinerary();
+    // Add legend to map.
+    var legend = L.control({position: 'bottomright'});
+    legend.onAdd = function(map) {
+      var div = L.DomUtil.create('div', 'info legend');
+      div.innerHTML += "<b>Legend</b><br>";
+      div.innerHTML += '<i style="background: red"></i> Refuge (Selected)<br>';
+      div.innerHTML += '<i style="background: blue"></i> Refuge (Default)<br>';
+      div.innerHTML += '<i style="background: black"></i> Village (Selected)<br>';
+      div.innerHTML += '<i style="background: gray"></i> Village (Default)<br>';
+      div.innerHTML += '<i style="background: darkorange"></i> Sheepfold (Selected)<br>';
+      div.innerHTML += '<i style="background: orange"></i> Sheepfold (Default)<br>';
+      div.innerHTML += '<i style="background: violet"></i> Custom Stop<br>';
+      return div;
+    };
+    legend.addTo(map);
   </script>
 </body>
 </html>
