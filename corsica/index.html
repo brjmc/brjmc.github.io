@@ -177,26 +177,26 @@
       { name: "Refuge de Paliri", type: "refuge", lat: 41.7945, lng: 9.2596, alt: 1055, origIndex: 14, booking: "https://booking.example.com/paliri" },
       { name: "Conca", type: "village", lat: 41.7350, lng: 9.3333, alt: 100, origIndex: 15 }
     ];
-    // Extended stops: add additional sheepfold stops.
+    // Extended stops: reindex all stops.
     const stopsN2SExtended = [
-      originalStops[0],
-      originalStops[1],
-      originalStops[2],
-      originalStops[3],
-      originalStops[4],
-      originalStops[5],
-      originalStops[6],
-      { name: "Bergeries d'A Basseta", type: "sheepfold", lat: 42.2150, lng: 8.9850, alt: 1600 },
-      originalStops[7],
-      originalStops[8],
-      originalStops[9],
-      originalStops[10],
-      originalStops[11],
-      originalStops[12],
-      { name: "Bergeries d'I Croci", type: "sheepfold", lat: 41.8900, lng: 9.2100, alt: 1550 },
-      originalStops[13],
-      originalStops[14],
-      originalStops[15]
+      originalStops[0],                  // 0: Calenzana
+      originalStops[1],                  // 1: Refuge d'Ortu di u Piobbu
+      originalStops[2],                  // 2: Refuge de Carrozzu
+      originalStops[3],                  // 3: Ascu Stagnu (Haut Asco)
+      originalStops[4],                  // 4: Refuge de Tighjettu
+      originalStops[5],                  // 5: Refuge de Ciottulu di i Mori
+      originalStops[6],                  // 6: Refuge de Manganu
+      { name: "Bergeries d'A Basseta", type: "sheepfold", lat: 42.2150, lng: 8.9850, alt: 1600, origIndex: null },
+      originalStops[7],                  // 8: Refuge de Petra Piana (origIndex remains 7)
+      originalStops[8],                  // 9: Refuge de l'Onda (origIndex remains 8)
+      originalStops[9],                  // 10: Vizzavona (origIndex remains 9)
+      originalStops[10],                 // 11: Bergeries d'E Capannelle (origIndex remains 10)
+      originalStops[11],                 // 12: Refuge de Prati (origIndex remains 11)
+      originalStops[12],                 // 13: Refuge d'Usciolu (origIndex remains 12)
+      { name: "Bergeries d'I Croci", type: "sheepfold", lat: 41.8900, lng: 9.2100, alt: 1550, origIndex: null },
+      originalStops[13],                 // 15: Refuge d'Asinau (origIndex remains 13)
+      originalStops[14],                 // 16: Refuge de Paliri (origIndex remains 14)
+      originalStops[15]                  // 17: Conca (origIndex remains 15)
     ];
     // Stage data for the GR20 (15 legs)
     const stagesN2S = [
@@ -226,18 +226,15 @@
     let aggregatedLegs = [];
 
     /******** Helper Functions ********/
-    // Haversine distance (km)
     function haversineDistance(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) ** 2 +
-                Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
-                Math.sin(dLon/2) ** 2;
+      const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
-    // Return icon based on stop type and selection status.
+    // Return icon based on stop type and selection.
     function getIconForType(stop, isSelected) {
       let color;
       if(stop.type === "refuge") {
@@ -259,10 +256,9 @@
       });
     }
     // Compute leg stats between two stops.
-    // If both stops have origIndex, sum GR20 stage data.
-    // Otherwise, use alt difference as an approximation.
+    // If both stops have non-null origIndex, sum stage data; otherwise, fallback to haversine.
     function getLegStats(start, end) {
-      if(start.origIndex !== undefined && end.origIndex !== undefined && end.origIndex > start.origIndex) {
+      if(start.origIndex !== null && end.origIndex !== null && start.origIndex !== undefined && end.origIndex !== undefined && end.origIndex > start.origIndex) {
         let totalDistance = 0, totalGain = 0, totalLoss = 0;
         for(let i = start.origIndex; i < end.origIndex; i++){
           totalDistance += stagesN2S[i].distance;
@@ -280,7 +276,7 @@
         return { totalDistance: parseFloat(d.toFixed(1)), totalGain: "N/A", totalLoss: "N/A" };
       }
     }
-    // Basic Naismith estimate: time (hours) = distance/5 + (elevationGain/300)*0.5
+    // Basic Naismith estimate.
     function estimateTime(distance, elevationGain) {
       if(elevationGain === "N/A") return "N/A";
       const flatTime = distance / 5;
@@ -368,7 +364,7 @@
       updateMap();
     }
 
-    /******** Elevation Profile Chart & Time Summary ********/
+    /******** Elevation Chart & Time Summary ********/
     let elevationChart; // Declare once.
     function updateElevationChart() {
       let cumulativeDistance = 0;
@@ -378,7 +374,218 @@
         const prev = stops[selectedStops[i-1]];
         const curr = stops[selectedStops[i]];
         let d;
-        if(prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
+        if(prev.origIndex !== null && curr.origIndex !== null &&
+           prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
+          d = 0;
+          for(let j = prev.origIndex; j < curr.origIndex; j++){
+            d += stagesN2S[j].distance;
+          }
+        } else {
+          d = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+        }
+        cumulativeDistance += d;
+        distances.push(parseFloat(cumulativeDistance.toFixed(1)));
+        altitudes.push(curr.alt || 0);
+      }
+      const ctx = document.getElementById('elevationChart').getContext('2d');
+      if(elevationChart) elevationChart.destroy();
+      elevationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: distances,
+          datasets: [{
+            label: 'Elevation (m)',
+            data: altitudes,
+            fill: false,
+            borderColor: 'orange',
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: context => `Elevation: ${context.parsed.y} m`
+              }
+            }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Cumulative Distance (km)' } },
+            y: { title: { display: true, text: 'Altitude (m)' } }
+          }
+        }
+      });
+    }
+    function updateTimeSummary() {
+      let totalMinutes = 0;
+      aggregatedLegs.forEach(leg => {
+        if(leg.totalDistance !== "N/A" && leg.totalGain !== "N/A"){
+          const parts = leg.legTime.split(" ");
+          const hours = parseInt(parts[0].replace("h",""));
+          const minutes = parseInt(parts[1].replace("m",""));
+          totalMinutes += hours * 60 + minutes;
+        }
+      });
+      const totHours = Math.floor(totalMinutes / 60);
+      const totMinutes = totalMinutes % 60;
+      document.getElementById("timeSummary").innerHTML = `<b>Total Estimated Hiking Time:</b> ${totHours}h ${totMinutes}m`;
+    }
+
+    /******** Toggle Stop Display ********/
+    document.getElementById("toggleStopDisplay").addEventListener("click", function(){
+      showAllStops = !showAllStops;
+      this.textContent = showAllStops ? "Show All Stops" : "Show Only Selected Stops";
+      updateMap();
+    });
+
+    /******** Map Update ********/
+    function updateMap() {
+      markerLayer.clearLayers();
+      legLayer.clearLayers();
+      if(showAllStops) {
+        stops.forEach((stop, index) => {
+          const isSelected = selectedStops.includes(index);
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, isSelected) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking){
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', async function(e){
+            const weather = await fetchWeather(stop.lat, stop.lng);
+            this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
+          });
+          markerLayer.addLayer(marker);
+        });
+      } else {
+        selectedStops.forEach(index => {
+          const stop = stops[index];
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, true) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking){
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', async function(e){
+            const weather = await fetchWeather(stop.lat, stop.lng);
+            this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
+          });
+          markerLayer.addLayer(marker);
+        });
+      }
+      aggregatedLegs.forEach(leg => {
+        const start = stops[leg.startIndex];
+        const end = stops[leg.endIndex];
+        const legCoords = [[start.lat, start.lng], [end.lat, end.lng]];
+        const polyline = L.polyline(legCoords, { color: 'green', weight: 5, opacity: 0.8 });
+        const tooltipContent = `Distance: ${leg.totalDistance} km<br>Elevation Gain: ${leg.totalGain} m<br>Elevation Loss: ${leg.totalLoss} m`;
+        polyline.bindTooltip(tooltipContent, {sticky: true});
+        legLayer.addLayer(polyline);
+      });
+      const coordsToFit = selectedStops.map(index => [stops[index].lat, stops[index].lng]);
+      if(coordsToFit.length > 0) {
+        map.fitBounds(L.latLngBounds(coordsToFit), { padding: [20,20] });
+      }
+    }
+
+    /******** Weather Integration ********/
+    async function fetchWeather(lat, lng) {
+      try {
+        const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=metric&appid=YOUR_API_KEY_HERE`);
+        const data = await response.json();
+        if(data && data.weather && data.main){
+          return `Weather: ${data.weather[0].description}, Temp: ${data.main.temp}°C`;
+        }
+      } catch(e) {
+        console.error(e);
+      }
+      return "Weather info not available";
+    }
+
+    /******** Custom Stops ********/
+    map.on('click', function(e) {
+      const note = prompt("Enter a note for this custom stop:");
+      if(note) {
+        const customStop = {
+          name: "Custom: " + note,
+          type: "custom",
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+          alt: 0,
+          origIndex: null
+        };
+        let customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+        customStops.push(customStop);
+        localStorage.setItem("customStops", JSON.stringify(customStops));
+        stops.push(customStop);
+        initStopGrid();
+        updateItinerary();
+      }
+    });
+    function loadCustomStops() {
+      const customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+      customStops.forEach(cs => {
+        if(!stops.find(s => s.name === cs.name)) {
+          stops.push(cs);
+        }
+      });
+    }
+    loadCustomStops();
+
+    /******** GPX Export ********/
+    document.getElementById("exportGPX").addEventListener("click", function(){
+      let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GR20 Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>GR20 Planned Route</name>
+  </metadata>`;
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+  <wpt lat="${stop.lat}" lon="${stop.lng}">
+    <name>${stop.name}</name>
+    <desc>Altitude: ${stop.alt || "N/A"} m</desc>
+  </wpt>`;
+      });
+      gpx += `
+  <trk>
+    <name>GR20 Route</name>
+    <trkseg>`;
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+      <trkpt lat="${stop.lat}" lon="${stop.lng}">
+        <ele>${stop.alt || 0}</ele>
+      </trkpt>`;
+      });
+      gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+      const blob = new Blob([gpx], { type: "application/gpx+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "GR20_route.gpx";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    /******** Elevation Chart & Time Summary ********/
+    function updateElevationChart() {
+      let cumulativeDistance = 0;
+      const distances = [0];
+      const altitudes = [stops[selectedStops[0]].alt || 0];
+      for(let i = 1; i < selectedStops.length; i++){
+        const prev = stops[selectedStops[i-1]];
+        const curr = stops[selectedStops[i]];
+        let d;
+        if(prev.origIndex !== null && curr.origIndex !== null &&
+           prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
           d = 0;
           for(let j = prev.origIndex; j < curr.origIndex; j++){
             d += stagesN2S[j].distance;
@@ -527,7 +734,8 @@
           type: "custom",
           lat: e.latlng.lat,
           lng: e.latlng.lng,
-          alt: 0
+          alt: 0,
+          origIndex: null
         };
         let customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
         customStops.push(customStop);
@@ -595,7 +803,428 @@
         const prev = stops[selectedStops[i-1]];
         const curr = stops[selectedStops[i]];
         let d;
-        if(prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
+        if(prev.origIndex !== null && curr.origIndex !== null &&
+           prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
+          d = 0;
+          for(let j = prev.origIndex; j < curr.origIndex; j++){
+            d += stagesN2S[j].distance;
+          }
+        } else {
+          d = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+        }
+        cumulativeDistance += d;
+        distances.push(parseFloat(cumulativeDistance.toFixed(1)));
+        altitudes.push(curr.alt || 0);
+      }
+      const ctx = document.getElementById('elevationChart').getContext('2d');
+      if(elevationChart) elevationChart.destroy();
+      elevationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: distances,
+          datasets: [{
+            label: 'Elevation (m)',
+            data: altitudes,
+            fill: false,
+            borderColor: 'orange',
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: context => `Elevation: ${context.parsed.y} m`
+              }
+            }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Cumulative Distance (km)' } },
+            y: { title: { display: true, text: 'Altitude (m)' } }
+          }
+        }
+      });
+    }
+    function updateTimeSummary() {
+      let totalMinutes = 0;
+      aggregatedLegs.forEach(leg => {
+        if(leg.totalDistance !== "N/A" && leg.totalGain !== "N/A"){
+          const parts = leg.legTime.split(" ");
+          const hours = parseInt(parts[0].replace("h",""));
+          const minutes = parseInt(parts[1].replace("m",""));
+          totalMinutes += hours * 60 + minutes;
+        }
+      });
+      const totHours = Math.floor(totalMinutes / 60);
+      const totMinutes = totalMinutes % 60;
+      document.getElementById("timeSummary").innerHTML = `<b>Total Estimated Hiking Time:</b> ${totHours}h ${totMinutes}m`;
+    }
+
+    /******** Toggle Stop Display ********/
+    document.getElementById("toggleStopDisplay").addEventListener("click", function(){
+      showAllStops = !showAllStops;
+      this.textContent = showAllStops ? "Show All Stops" : "Show Only Selected Stops";
+      updateMap();
+    });
+
+    /******** Map Update ********/
+    function updateMap() {
+      markerLayer.clearLayers();
+      legLayer.clearLayers();
+      if(showAllStops) {
+        stops.forEach((stop, index) => {
+          const isSelected = selectedStops.includes(index);
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, isSelected) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking){
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', async function(e){
+            const weather = await fetchWeather(stop.lat, stop.lng);
+            this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
+          });
+          markerLayer.addLayer(marker);
+        });
+      } else {
+        selectedStops.forEach(index => {
+          const stop = stops[index];
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, true) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking){
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', async function(e){
+            const weather = await fetchWeather(stop.lat, stop.lng);
+            this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
+          });
+          markerLayer.addLayer(marker);
+        });
+      }
+      aggregatedLegs.forEach(leg => {
+        const start = stops[leg.startIndex];
+        const end = stops[leg.endIndex];
+        const legCoords = [[start.lat, start.lng], [end.lat, end.lng]];
+        const polyline = L.polyline(legCoords, { color: 'green', weight: 5, opacity: 0.8 });
+        const tooltipContent = `Distance: ${leg.totalDistance} km<br>Elevation Gain: ${leg.totalGain} m<br>Elevation Loss: ${leg.totalLoss} m`;
+        polyline.bindTooltip(tooltipContent, {sticky: true});
+        legLayer.addLayer(polyline);
+      });
+      const coordsToFit = selectedStops.map(index => [stops[index].lat, stops[index].lng]);
+      if(coordsToFit.length > 0) {
+        map.fitBounds(L.latLngBounds(coordsToFit), { padding: [20,20] });
+      }
+    }
+
+    /******** Weather Integration ********/
+    async function fetchWeather(lat, lng) {
+      try {
+        const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=metric&appid=YOUR_API_KEY_HERE`);
+        const data = await response.json();
+        if(data && data.weather && data.main){
+          return `Weather: ${data.weather[0].description}, Temp: ${data.main.temp}°C`;
+        }
+      } catch(e) {
+        console.error(e);
+      }
+      return "Weather info not available";
+    }
+
+    /******** Custom Stops ********/
+    map.on('click', function(e) {
+      const note = prompt("Enter a note for this custom stop:");
+      if(note) {
+        const customStop = {
+          name: "Custom: " + note,
+          type: "custom",
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+          alt: 0,
+          origIndex: null
+        };
+        let customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+        customStops.push(customStop);
+        localStorage.setItem("customStops", JSON.stringify(customStops));
+        stops.push(customStop);
+        initStopGrid();
+        updateItinerary();
+      }
+    });
+    function loadCustomStops() {
+      const customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+      customStops.forEach(cs => {
+        if(!stops.find(s => s.name === cs.name)) {
+          stops.push(cs);
+        }
+      });
+    }
+    loadCustomStops();
+
+    /******** GPX Export ********/
+    document.getElementById("exportGPX").addEventListener("click", function(){
+      let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GR20 Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>GR20 Planned Route</name>
+  </metadata>`;
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+  <wpt lat="${stop.lat}" lon="${stop.lng}">
+    <name>${stop.name}</name>
+    <desc>Altitude: ${stop.alt || "N/A"} m</desc>
+  </wpt>`;
+      });
+      gpx += `
+  <trk>
+    <name>GR20 Route</name>
+    <trkseg>`;
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+      <trkpt lat="${stop.lat}" lon="${stop.lng}">
+        <ele>${stop.alt || 0}</ele>
+      </trkpt>`;
+      });
+      gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+      const blob = new Blob([gpx], { type: "application/gpx+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "GR20_route.gpx";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    /******** Elevation Chart & Time Summary ********/
+    function updateElevationChart() {
+      let cumulativeDistance = 0;
+      const distances = [0];
+      const altitudes = [stops[selectedStops[0]].alt || 0];
+      for(let i = 1; i < selectedStops.length; i++){
+        const prev = stops[selectedStops[i-1]];
+        const curr = stops[selectedStops[i]];
+        let d;
+        if(prev.origIndex !== null && curr.origIndex !== null &&
+           prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
+          d = 0;
+          for(let j = prev.origIndex; j < curr.origIndex; j++){
+            d += stagesN2S[j].distance;
+          }
+        } else {
+          d = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+        }
+        cumulativeDistance += d;
+        distances.push(parseFloat(cumulativeDistance.toFixed(1)));
+        altitudes.push(curr.alt || 0);
+      }
+      const ctx = document.getElementById('elevationChart').getContext('2d');
+      if(elevationChart) elevationChart.destroy();
+      elevationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: distances,
+          datasets: [{
+            label: 'Elevation (m)',
+            data: altitudes,
+            fill: false,
+            borderColor: 'orange',
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: context => `Elevation: ${context.parsed.y} m`
+              }
+            }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Cumulative Distance (km)' } },
+            y: { title: { display: true, text: 'Altitude (m)' } }
+          }
+        }
+      });
+    }
+    function updateTimeSummary() {
+      let totalMinutes = 0;
+      aggregatedLegs.forEach(leg => {
+        if(leg.totalDistance !== "N/A" && leg.totalGain !== "N/A"){
+          const parts = leg.legTime.split(" ");
+          const hours = parseInt(parts[0].replace("h",""));
+          const minutes = parseInt(parts[1].replace("m",""));
+          totalMinutes += hours * 60 + minutes;
+        }
+      });
+      const totHours = Math.floor(totalMinutes / 60);
+      const totMinutes = totalMinutes % 60;
+      document.getElementById("timeSummary").innerHTML = `<b>Total Estimated Hiking Time:</b> ${totHours}h ${totMinutes}m`;
+    }
+
+    /******** Toggle Stop Display ********/
+    document.getElementById("toggleStopDisplay").addEventListener("click", function(){
+      showAllStops = !showAllStops;
+      this.textContent = showAllStops ? "Show All Stops" : "Show Only Selected Stops";
+      updateMap();
+    });
+
+    /******** Map Update ********/
+    function updateMap() {
+      markerLayer.clearLayers();
+      legLayer.clearLayers();
+      if(showAllStops) {
+        stops.forEach((stop, index) => {
+          const isSelected = selectedStops.includes(index);
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, isSelected) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking){
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', async function(e){
+            const weather = await fetchWeather(stop.lat, stop.lng);
+            this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
+          });
+          markerLayer.addLayer(marker);
+        });
+      } else {
+        selectedStops.forEach(index => {
+          const stop = stops[index];
+          const marker = L.marker([stop.lat, stop.lng], { icon: getIconForType(stop, true) });
+          let extra = "";
+          if(stop.type === "refuge" && stop.booking){
+            extra = `<br><a href="${stop.booking}" target="_blank">Booking Link</a>`;
+          }
+          marker.bindPopup(`${stop.name}${extra}`);
+          marker.bindTooltip(stop.name, { direction: 'top', permanent: false });
+          marker.on('click', async function(e){
+            const weather = await fetchWeather(stop.lat, stop.lng);
+            this.setPopupContent(`${stop.name}${extra}<br>${weather}`);
+          });
+          markerLayer.addLayer(marker);
+        });
+      }
+      aggregatedLegs.forEach(leg => {
+        const start = stops[leg.startIndex];
+        const end = stops[leg.endIndex];
+        const legCoords = [[start.lat, start.lng], [end.lat, end.lng]];
+        const polyline = L.polyline(legCoords, { color: 'green', weight: 5, opacity: 0.8 });
+        const tooltipContent = `Distance: ${leg.totalDistance} km<br>Elevation Gain: ${leg.totalGain} m<br>Elevation Loss: ${leg.totalLoss} m`;
+        polyline.bindTooltip(tooltipContent, {sticky: true});
+        legLayer.addLayer(polyline);
+      });
+      const coordsToFit = selectedStops.map(index => [stops[index].lat, stops[index].lng]);
+      if(coordsToFit.length > 0) {
+        map.fitBounds(L.latLngBounds(coordsToFit), { padding: [20,20] });
+      }
+    }
+
+    /******** Weather Integration ********/
+    async function fetchWeather(lat, lng) {
+      try {
+        const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=metric&appid=YOUR_API_KEY_HERE`);
+        const data = await response.json();
+        if(data && data.weather && data.main){
+          return `Weather: ${data.weather[0].description}, Temp: ${data.main.temp}°C`;
+        }
+      } catch(e) {
+        console.error(e);
+      }
+      return "Weather info not available";
+    }
+
+    /******** Custom Stops ********/
+    map.on('click', function(e) {
+      const note = prompt("Enter a note for this custom stop:");
+      if(note) {
+        const customStop = {
+          name: "Custom: " + note,
+          type: "custom",
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+          alt: 0,
+          origIndex: null
+        };
+        let customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+        customStops.push(customStop);
+        localStorage.setItem("customStops", JSON.stringify(customStops));
+        stops.push(customStop);
+        initStopGrid();
+        updateItinerary();
+      }
+    });
+    function loadCustomStops() {
+      const customStops = JSON.parse(localStorage.getItem("customStops") || "[]");
+      customStops.forEach(cs => {
+        if(!stops.find(s => s.name === cs.name)) {
+          stops.push(cs);
+        }
+      });
+    }
+    loadCustomStops();
+
+    /******** GPX Export ********/
+    document.getElementById("exportGPX").addEventListener("click", function(){
+      let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GR20 Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>GR20 Planned Route</name>
+  </metadata>`;
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+  <wpt lat="${stop.lat}" lon="${stop.lng}">
+    <name>${stop.name}</name>
+    <desc>Altitude: ${stop.alt || "N/A"} m</desc>
+  </wpt>`;
+      });
+      gpx += `
+  <trk>
+    <name>GR20 Route</name>
+    <trkseg>`;
+      selectedStops.forEach(index => {
+        const stop = stops[index];
+        gpx += `
+      <trkpt lat="${stop.lat}" lon="${stop.lng}">
+        <ele>${stop.alt || 0}</ele>
+      </trkpt>`;
+      });
+      gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+      const blob = new Blob([gpx], { type: "application/gpx+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "GR20_route.gpx";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    /******** Elevation Chart & Time Summary ********/
+    function updateElevationChart() {
+      let cumulativeDistance = 0;
+      const distances = [0];
+      const altitudes = [stops[selectedStops[0]].alt || 0];
+      for(let i = 1; i < selectedStops.length; i++){
+        const prev = stops[selectedStops[i-1]];
+        const curr = stops[selectedStops[i]];
+        let d;
+        if(prev.origIndex !== null && curr.origIndex !== null &&
+           prev.origIndex !== undefined && curr.origIndex !== undefined && curr.origIndex > prev.origIndex) {
           d = 0;
           for(let j = prev.origIndex; j < curr.origIndex; j++){
             d += stagesN2S[j].distance;
