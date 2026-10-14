@@ -6,14 +6,14 @@ import type { Game } from '../game';
 import { FAR_X0, KERB_H, WALK_X1 } from '../sim/constants';
 import type { View } from '../sim/projection';
 import { blocksInRange, type Block } from '../sim/props';
-import type { SimEvent } from '../sim/world';
+import type { Car as SimCar, SimEvent } from '../sim/world';
 import { Buildings } from './buildings';
 import { Cars } from './cars';
 import { AimRing, Drizzle, Segments, Shadows, Sky } from './fx';
 import { Beams, Halos } from './glows';
 import { MAX_HEADS, MAX_LAMPS, shared } from './lighting';
 import { CARS, CROWD, P, mix, type RGB } from './palette';
-import { People, defaultPose, type Pose } from './people';
+import { People, defaultPose, resetPose, type Pose } from './people';
 import { Post } from './post';
 import { Posts } from './posts';
 import { Street } from './street';
@@ -42,7 +42,7 @@ interface Fx {
   shakeAmp: number;
   desat: number;
   flash: number;
-  dashT: number; // time since the last dash started
+  dashAt: number; // sim time of the last dash
   dashDirX: number;
   dashDirZ: number;
   stumbleSide: number;
@@ -68,9 +68,10 @@ export class Renderer {
   private blocks: Block[] = [];
   private view!: View;
   private pose: Pose = defaultPose();
-  private fx: Fx = { shake: 0, shakeAmp: 0, desat: 0, flash: 0, dashT: 9, dashDirX: 0, dashDirZ: -1, stumbleSide: 1 };
+  private fx: Fx = { shake: 0, shakeAmp: 0, desat: 0, flash: 0, dashAt: -9, dashDirX: 0, dashDirZ: -1, stumbleSide: 1 };
   private time = 0;
   private lampSort: { x: number; y: number; z: number; d: number }[] = [];
+  private carOrder: SimCar[] = [];
   tier: Tier = TIERS[1];
   /** 0..1, how close the chaser is (for vignette + audio). */
   dread = 0;
@@ -81,6 +82,8 @@ export class Renderer {
     this.renderer.autoClear = true;
     this.renderer.setClearColor(new THREE.Color().setRGB(...P.haze, THREE.SRGBColorSpace));
     this.renderer.info.autoReset = false;
+    this.people.xray.mesh.renderOrder = 5;
+    this.people.player.mesh.renderOrder = 6;
     this.scene.add(
       this.sky.mesh,
       this.street.mesh,
@@ -90,6 +93,8 @@ export class Renderer {
       this.shadows.mesh,
       this.aim.mesh,
       this.people.crowd.mesh,
+      this.people.xray.mesh,
+      this.people.player.mesh,
       this.people.chaser.mesh,
       this.cars.sedans.mesh,
       this.cars.vans.mesh,
@@ -122,7 +127,10 @@ export class Renderer {
   }
 
   /** React to sim events (visual side only). */
-  onEvents(events: SimEvent[]) {
+  private simTime = 0;
+
+  onEvents(events: SimEvent[], simTime: number) {
+    this.simTime = simTime;
     for (const e of events) {
       switch (e.t) {
         case 'nearMiss':
@@ -131,7 +139,7 @@ export class Renderer {
           this.fx.desat = 1;
           break;
         case 'dash':
-          this.fx.dashT = 0;
+          this.fx.dashAt = this.simTime;
           this.fx.dashDirX = e.dirX;
           this.fx.dashDirZ = e.dirZ;
           this.fx.shake = Math.max(this.fx.shake, 0.12);
@@ -162,7 +170,7 @@ export class Renderer {
     fx.shake = Math.max(0, fx.shake - realDt);
     fx.desat = Math.max(0, fx.desat - realDt * 2.2);
     fx.flash = Math.max(0, fx.flash - realDt * 3);
-    fx.dashT += realDt * (game.timeScale || 0);
+    const dashT = w.time - fx.dashAt;
 
     /* ---------- camera ---------- */
     const camX = lerp(w.cam.px, w.cam.x, a);
@@ -226,10 +234,12 @@ export class Renderer {
     this.cars.vans.n = 0;
     this.shadows.begin();
     let nh = 0;
-    const heads = w.cars
-      .map((c) => ({ c, z: lerp(c.pz, c.z, a) }))
-      .sort((p, q) => Math.abs(p.z - camZ - 10) - Math.abs(q.z - camZ - 10));
-    for (const { c, z } of heads) {
+    const order = this.carOrder;
+    order.length = 0;
+    for (const c of w.cars) order.push(c);
+    order.sort((p, q) => Math.abs(p.z - camZ - 10) - Math.abs(q.z - camZ - 10));
+    for (const c of order) {
+      const z = lerp(c.pz, c.z, a);
       const x = lerp(c.px, c.x, a);
       const rz = -z;
       const toward = c.dir < 0; // render +z
@@ -287,8 +297,8 @@ export class Renderer {
     } else this.aim.mesh.visible = false;
 
     // speed lines behind a dash
-    if (fx.dashT < 0.45) {
-      const k = 1 - fx.dashT / 0.45;
+    if (dashT < 0.45) {
+      const k = 1 - dashT / 0.45;
       const dx = fx.dashDirX;
       const dz = -fx.dashDirZ;
       for (let i = 0; i < 7; i++) {
@@ -308,7 +318,7 @@ export class Renderer {
         const k = clamp01(game.stage === 'failed' ? 1 : game.stageT / 0.5);
         const cx = c.x;
         const cz = -c.z;
-        this.segs.add(cx, 0.17, cz, lerp(cx, px, k * 1.4), 0.17, lerp(cz, -pz, k * 1.4), 46, P.ink, 0.55 * k);
+        this.segs.add(cx, 0.17, cz, lerp(cx, px, k * 1.6), 0.17, lerp(cz, -pz, k * 1.6), 70, P.ink, 0.75 * k);
       }
     }
     this.segs.end();
@@ -360,7 +370,7 @@ export class Renderer {
       const dz = z - camZ;
       if (dz < 0.6 || dz > 92) continue;
       const x = lerp(q.px, q.x, a);
-      Object.assign(pose, defaultPose());
+      resetPose(pose);
       pose.x = x;
       pose.y = KERB_H;
       pose.z = -z;
@@ -384,7 +394,7 @@ export class Renderer {
       pose.coat = CROWD[look % CROWD.length];
       pose.legs = mix(pose.coat, P.ink, 0.5);
       pose.head = (look >> 3) % 6;
-      pose.coatLen = ((look >> 2) % 3) * 0.5;
+      pose.coatLen = [0, 0.35, 0.35, 0.9][(look >> 2) % 4];
       pose.scale = q.scale;
       pose.armSwing = 0.8 + 0.4 * q.seed;
       pose.fade = THREE.MathUtils.smoothstep(dz, 1.3, 3.8);
@@ -397,19 +407,19 @@ export class Renderer {
     const fx = this.fx;
     const px = lerp(p.px, p.x, a);
     const pz = lerp(p.pz, p.z, a);
-    Object.assign(pose, defaultPose());
+    resetPose(pose);
     pose.x = px;
     pose.y = this.groundY(px);
     pose.z = -pz;
     pose.yaw = Math.atan2(p.dirX, -p.dirZ);
     pose.phase = lerp(p.pphase, p.phase, a);
     pose.stride = Math.min(1.1, p.speed / w.tune.baseSpeed);
-    pose.bob = 0.04;
+    pose.bob = 0.055;
     pose.coatLen = 0.7;
     pose.coat = P.bone;
     pose.legs = P.boneTrim;
     pose.head = 4;
-    pose.lean = 0.09 * pose.stride;
+    pose.lean = 0.13 * pose.stride;
     const bumpEnv = p.bumpT < 0.24 ? Math.pow(1 - p.bumpT / 0.24, 2) : 0;
     pose.squash = [0.16, 0.08, 0.02][p.bumpTier] * bumpEnv;
     if (p.bumpTier === 0 && p.bumpT < 0.4) {
@@ -425,28 +435,45 @@ export class Renderer {
       pose.squash = 0.06 * c;
       pose.stride = 0;
     }
-    if (fx.dashT < 0.45) {
-      const k = 1 - fx.dashT / 0.45;
+    const dashT = w.time - fx.dashAt;
+    if (dashT < 0.45) {
+      const k = 1 - dashT / 0.45;
       pose.reach = Math.max(pose.reach, k);
       pose.lean = Math.max(pose.lean, 0.38 * k);
       pose.squash = Math.min(pose.squash, -0.12 * k);
     }
     if (game.stage === 'dying' || game.stage === 'failed') {
-      const k = clamp01(game.stage === 'failed' ? 1 : game.stageT / 0.6);
+      const k = clamp01(game.stage === 'failed' ? 1 : game.stageT / 0.55);
+      const e = 1 - Math.pow(1 - k, 3);
       if (w.deathCause === 'car') {
-        pose.tilt = 1.3 * k;
+        // the world freezes; only you are thrown clear of the car
         const killer = w.cars.find((c) => c.id === w.killerId);
-        pose.tiltYaw = killer ? (killer.dir < 0 ? 0 : Math.PI) + (px < killer.x ? -0.6 : 0.6) : 0;
-        pose.reach = 0.8 * k;
-      } else {
-        pose.crouch = 0.6 * k;
-        pose.lean = 0.5 * k;
+        const side = killer ? (px < killer.x ? -1 : 1) : -1;
+        const fwd = killer ? (killer.dir < 0 ? 1 : -1) : 1;
+        pose.x += side * 1.5 * e;
+        pose.z += fwd * 1.1 * e;
+        pose.y += Math.sin(Math.PI * k) * 0.35;
+        pose.tilt = 1.45 * e;
+        pose.tiltYaw = Math.atan2(side, fwd * 0.6);
+        pose.reach = 0.9 * e;
         pose.stride = 0;
+      } else {
+        // its reach lands on you: you fold, and the bone drains out of you
+        pose.crouch = 0.55 * e;
+        pose.lean = 0.55 * e;
+        pose.stride = 0;
+        pose.coat = mix(P.bone, P.ink, 0.88 * e);
+        pose.legs = mix(P.boneTrim, P.ink, 0.88 * e);
       }
     }
-    crowd.add(pose);
-    this.shadows.add(px, pose.y, -pz, 0.46);
     crowd.end();
+    const pl = this.people.player;
+    pl.begin();
+    pl.add(pose);
+    pl.end();
+    this.people.xray.copyFrom(pl);
+    this.people.xray.end();
+    this.shadows.add(px, pose.y, -pz, 0.46);
 
     /* chaser */
     const ch = this.people.chaser;
@@ -454,7 +481,7 @@ export class Renderer {
     const c = w.chaser;
     const cx = lerp(c.px, c.x, a);
     const cz = lerp(c.pz, c.z, a);
-    Object.assign(pose, defaultPose());
+    resetPose(pose);
     pose.x = cx;
     pose.y = this.groundY(cx);
     pose.z = -cz;
@@ -462,16 +489,17 @@ export class Renderer {
     pose.phase = lerp(c.pphase, c.phase, a);
     pose.stride = 1;
     pose.armSwing = 0.1;
-    pose.kneeAmp = 0.35;
-    pose.bob = 0.012;
-    pose.lean = 0.26;
-    pose.coatLen = 1;
+    pose.kneeAmp = 0.3;
+    pose.bob = 0.01;
+    pose.lean = 0.2;
+    pose.coatLen = 0.45;
     const gap = w.chaserGap;
     pose.reach = clamp01((2.8 - gap) / 1.8) * 0.85;
     if (w.deathCause === 'caught' && (game.stage === 'dying' || game.stage === 'failed')) {
-      pose.reach = 1;
-      pose.lean = 0.42;
-      pose.stride = 0.2;
+      const k = clamp01(game.stage === 'failed' ? 1 : game.stageT / 0.45);
+      pose.reach = 0.85 + 0.85 * k; // arms rise over you, then come down on your shoulders
+      pose.lean = 0.2 + 0.35 * k;
+      pose.stride = 0;
     }
     pose.coat = P.ink;
     pose.legs = P.ink;

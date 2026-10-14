@@ -72,7 +72,7 @@ function frame(now: number) {
   game.update(dt);
   hud.update(game);
   if (renderer) {
-    renderer.onEvents(game.events);
+    renderer.onEvents(game.events, game.world.time);
     renderer.render(game, dt);
   } else greybox!.render(game);
   game.events.length = 0;

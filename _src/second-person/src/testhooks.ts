@@ -3,6 +3,7 @@
 import type { Game, Stage } from './game';
 import type { Renderer } from './render/renderer';
 import { lensPoint } from './sim/bot';
+import { project } from './sim/projection';
 import { SIM_DT } from './sim/constants';
 
 export interface TestHooks {
@@ -14,6 +15,10 @@ export interface TestHooks {
   /** Step until a car is between `near` and `far` metres in front of the camera, up to `max` seconds. */
   walkUntilCar(near: number, far: number, max: number): boolean;
   pause(p: boolean): void;
+  /** Screen position of a sim point (CSS px). */
+  project(x: number, y: number, z: number): { x: number; y: number };
+  /** Step the sim by n fixed steps without the game loop. */
+  step(n: number): void;
   frames: number;
 }
 
@@ -61,6 +66,14 @@ export function runTestHooks(game: Game, renderer: Renderer | null) {
     },
     pause(p) {
       game.paused = p;
+    },
+    project(x, y, z) {
+      const w = game.world;
+      const r = project(w.view, w.cam, x, y, z);
+      return { x: r.sx, y: r.sy };
+    },
+    step(n) {
+      for (let i = 0; i < n; i++) game.world.step(SIM_DT);
     },
   };
   window.__sp = hooks;

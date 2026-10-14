@@ -43,4 +43,4 @@ export const HEADS: RGB[] = ['#2a2c30', '#3b3a3a', '#4a4540', '#2f343b', '#5b565
 export const CARS: RGB[] = ['#4a3a40', '#25333f', '#3c4a3a', '#6d6a60', '#1d1f24', '#4a3550', '#5e5f52'].map(hex);
 
 // Faces: muted, pulled toward haze so skin never reads as a warm accent.
-export const FACES: RGB[] = ['#b0a294', '#958478', '#bdae9f', '#7d6e64'].map(hex).map((c) => mix(c, P.haze, 0.2));
+export const FACES: RGB[] = ['#d2c3b3', '#b8a596', '#dccdbd', '#a08f82'].map(hex).map((c) => mix(c, P.haze, 0.12));

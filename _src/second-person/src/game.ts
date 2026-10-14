@@ -97,7 +97,9 @@ export class Game {
 
     if (this.stage === 'dying') {
       // a hard stop, then a slow crawl, then freeze
-      this.timeScale = this.stageT < 0.08 ? 0 : this.stageT < 0.9 ? 0.12 : 0;
+      // a car freezes the frame outright; being caught is a short slow crawl, then a freeze
+      if (this.world.deathCause === 'car') this.timeScale = 0;
+      else this.timeScale = this.stageT < 0.08 ? 0 : this.stageT < 0.9 ? 0.12 : 0;
       if (this.stageT >= DYING_TIME) this.setStage('failed');
     } else if (this.stage === 'clearing') {
       this.timeScale = 0.6;

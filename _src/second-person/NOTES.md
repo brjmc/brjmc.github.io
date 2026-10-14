@@ -42,3 +42,30 @@ software rasterisation, and it isn't recorded as a phone estimate.
 - Rejected: wet streaks on every surface. They read as random yellow capsules. Streaks are now
   limited to puddles.
 - Perf: CPU 2.5 ms median, 5.6 ms p90; 14 draw calls; 38k triangles; 98 people and 12 cars live.
+
+## 2. Characters
+
+- Kept: one procedural low-poly figure, posed entirely in the vertex shader from a handful of
+  per-instance numbers (phase, stride, crouch, squash, lean, reach, tilt). The whole crowd is
+  one draw call. Reviewed with `scripts/filmstrip.mjs` (walk, chaser, shove, bump, caught, hit).
+- First walk read as stiff and from the front looked like a figure skating on the spot.
+  Increased thigh swing (0.46 → 0.58 rad), arm swing, bob, shoulder counter-twist and hip sway
+  over the stance foot. From the camera's front-on view, the side-to-side weight shift is what
+  sells the walk.
+- Faces were present but read as hair: their normals point down at the street, so they got
+  about 25 % light. They now get a lighting floor. Checked with a red-face debug render.
+- Chaser: taller, narrow, arms to below the knee, unlit ink with ember eyes. Lean alone didn't
+  read from the front. Added a metronome-like side rock (0.085 rad), a tilted and drooping head
+  and a shorter coat so the stiff stride shows.
+- **Problem found:** people between the lens and the player hide the player, which is exactly where you're
+  walking. Rejected dithering them away, because then you can't see who you're about to hit. Kept
+  a dithered bone x-ray of the player, drawn (GreaterDepth) before the player itself so its own
+  limbs never show through.
+- Death by car in slow motion let the car roll over the player and hide them. A car hit is now a
+  hard freeze-frame with the player thrown clear (render-only; the sim stops). Being caught is a
+  short slow crawl: the chaser's arms rise over you, its shadow lands, and the bone drains out
+  of the player to ink.
+- Shove: anticipation crouch with arms drawn in, then a stretch, arms thrown forward and speed
+  lines. Knocked people tip up to 0.95 rad toward the knock direction, flail and recover over
+  the 0.9 s stagger.
+- Perf: CPU 2.5 ms median, 6.3 ms p90; 16 draw calls (+2: player and x-ray split out of the crowd).

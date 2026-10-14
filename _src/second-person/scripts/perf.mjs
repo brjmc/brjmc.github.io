@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const tier = process.argv[2] ?? '1';
-const server = await createServer({ root, logLevel: 'error', server: { port: 5183 } });
+const server = await createServer({ root, logLevel: 'error', server: { port: 5183, hmr: false, watch: null } });
 await server.listen();
 const base = server.resolvedUrls.local[0];
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -38,7 +38,7 @@ const res = await page.evaluate(async () => {
       const t0 = performance.now();
       // measure one extra update+render the way main.ts does (sim + submit)
       sp.game.update(1 / 60);
-      sp.renderer.onEvents(sp.game.events);
+      sp.renderer.onEvents(sp.game.events, w.time);
       sp.renderer.render(sp.game, 1 / 60);
       sp.game.events.length = 0;
       cpu.push(performance.now() - t0);

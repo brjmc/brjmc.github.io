@@ -155,13 +155,14 @@ void main() {
 
   // wet streaks: lamps and headlights, mostly in puddles
   if (vN.y > 0.5) {
-    float wet = wetBase * 0.12 + puddle;
+    // reflections right under the lens read as UI blobs, so they fade in with distance
+    float wet = (wetBase * 0.12 + puddle) * smoothstep(5.0, 11.0, length(Pw - uCamPos));
     float s = 0.0;
     for (int i = 0; i < MAX_LAMPS; i++) {
       if (i >= uLampCount) break;
       s += streak(Pw, V, uLamp[i], 22.0) * uLampOn[i];
     }
-    lit += uSodium * bands2(s * wet * 1.4) * 0.85;
+    lit += uSodium * bands2(s * wet * 1.4) * 0.7;
     float c = 0.0;
     for (int i = 0; i < MAX_HEADS; i++) {
       if (i >= uHeadCount) break;

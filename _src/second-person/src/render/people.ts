@@ -21,12 +21,14 @@ attribute vec3 iLegs;
 attribute vec4 iMisc;  // scale, head tone, fade, tilt direction (yaw)
 uniform vec4 uJ1; // hipX, hipY, kneeY, waistY
 uniform vec4 uJ2; // shoulderX, shoulderY, elbowY, neckY
+uniform vec4 uStyle; // head tilt, side rock, head droop, unused
 varying vec3 vP;
 varying vec3 vN;
 varying vec3 vCol;
 varying float vPart;
 varying float vFade;
 varying vec3 vLoc;
+varying float vFace;
 
 vec3 rotX(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(v.x, c * v.y - s * v.z, s * v.y + c * v.z); }
 vec3 rotZ(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(c * v.x - s * v.y, s * v.x + c * v.y, v.z); }
@@ -51,8 +53,8 @@ void main() {
     bool L = b < 8.5;
     float s = L ? 1.0 : -1.0;
     float lp = ph + (L ? 0.0 : 3.14159265);
-    float swing = -0.46 * st * sin(lp) - crouch * 0.85;
-    float knee = st * iGait.y * max(0.0, cos(lp)) + 0.1 * st + crouch * 1.5;
+    float swing = -0.58 * st * sin(lp) - crouch * 0.85;
+    float knee = st * iGait.y * 1.15 * max(0.0, cos(lp)) + 0.12 * st + crouch * 1.5;
     vec3 hip = vec3(s * uJ1.x, uJ1.y, 0.0);
     vec3 kn = vec3(s * uJ1.x, uJ1.z, 0.0);
     if (b == 8.0 || b == 10.0) { v = kn + rotX(v - kn, knee); n = rotX(n, knee); }
@@ -64,8 +66,8 @@ void main() {
       bool L = b < 4.5;
       float s = L ? 1.0 : -1.0;
       float reach = iPose.z;
-      float arm = s * iGait.x * st * sin(ph) * 0.55 - reach * 1.35 - crouch * 0.55;
-      float elbow = -(0.18 + 0.32 * st * iGait.x) * (1.0 - reach) - crouch * 0.9;
+      float arm = s * iGait.x * st * sin(ph) * 0.78 - reach * 1.35 - crouch * 0.55;
+      float elbow = -(0.18 + 0.32 * st * iGait.x) * max(0.0, 1.0 - reach) - crouch * 0.9 - max(0.0, reach - 1.0) * 0.9;
       vec3 sh = vec3(s * uJ2.x, uJ2.y, 0.0);
       vec3 el = vec3(s * (uJ2.x + 0.02), uJ2.z, 0.0);
       if (b == 4.0 || b == 6.0) { v = el + rotX(v - el, elbow); n = rotX(n, elbow); }
@@ -74,16 +76,24 @@ void main() {
       v = sh + rotZ(rotX(v - sh, arm), splay);
       n = rotZ(rotX(n, arm), splay);
     }
+    if (b == 2.0) {
+      vec3 neck = vec3(0.0, uJ2.w, 0.0);
+      v = neck + rotZ(rotX(v - neck, uStyle.z), uStyle.x);
+      n = rotZ(rotX(n, uStyle.z), uStyle.x);
+    }
     vec3 waist = vec3(0.0, uJ1.w, 0.0);
-    float twist = 0.14 * st * sin(ph) * iGait.x;
+    float twist = 0.22 * st * sin(ph) * iGait.x;
     float lean = iPose.x + crouch * 0.35;
-    v = waist + rotZ(rotX(rotY(v - waist, twist), lean), iPose.y);
-    n = rotZ(rotX(rotY(n, twist), lean), iPose.y);
+    // roll over the stance leg; the chaser rocks much further, like a metronome
+    float roll = iPose.y - (0.05 * st * iGait.x + uStyle.y) * sin(ph);
+    v = waist + rotZ(rotX(rotY(v - waist, twist), lean), roll);
+    n = rotZ(rotX(rotY(n, twist), lean), roll);
   }
 
   // weight: bob on each step, a little sway over the stance leg, sink when crouching
   v.y += iGait.z * st * cos(2.0 * ph) - crouch * 0.17;
-  v.x += 0.02 * st * sin(ph) * iGait.z * 25.0;
+  // hips shift over the stance foot
+  v.x += 0.035 * st * sin(ph) * min(1.0, iGait.z * 30.0);
 
   // squash (contact) or stretch (dash), about the feet
   float sq = iAnim.w;
@@ -104,6 +114,7 @@ void main() {
   vec3 wp = iPos.xyz + v;
 
   vec3 col = iCoat;
+  vFace = 0.0;
   int part = int(aPart + 0.5);
   if (part == 1) col = iLegs;
   else if (part == 2) col = vec3(0.09, 0.1, 0.11);
@@ -111,6 +122,7 @@ void main() {
     // hair or hat, with a face on the front of the head
     bool face = position.z > 0.03 && position.y < uJ2.w + 0.16;
     col = face ? uFaces[int(iMisc.y) % 4] : uHeads[int(iMisc.y) % 6];
+    vFace = face ? 1.0 : 0.0;
   }
   else if (part == 4) col = vec3(0.47, 0.44, 0.43);
   else if (part == 6) col = iCoat * 0.72;
@@ -128,12 +140,14 @@ void main() {
 const frag = /* glsl */ `
 ${LIGHTING_GLSL}
 uniform float uUnlit;
+uniform float uXray;
 varying vec3 vP;
 varying vec3 vN;
 varying vec3 vCol;
 varying float vPart;
 varying float vFade;
 varying vec3 vLoc;
+varying float vFace;
 
 float bayer4(vec2 p) {
   vec2 q = mod(floor(p), 4.0);
@@ -147,6 +161,12 @@ float bayer4(vec2 p) {
 }
 
 void main() {
+  if (uXray > 0.5) {
+    // the player seen through whoever is in the way: a dithered bone silhouette
+    if (bayer4(gl_FragCoord.xy) > 0.5) discard;
+    gl_FragColor = vec4(vCol * 0.85, 1.0);
+    return;
+  }
   if (vFade < 0.999 && bayer4(gl_FragCoord.xy) > vFade) discard;
   vec3 N = normalize(vN);
   if (uUnlit > 0.5) {
@@ -158,7 +178,9 @@ void main() {
   vec3 col = vCol;
   // coat opening down the front
   if (vPart < 0.5 && vLoc.z > 0.05 && vLoc.y > 0.7) col *= 1.0 - 0.45 * (1.0 - smoothstep(0.012, 0.022, abs(vLoc.x)));
-  vec3 lit = col * lightAt(vP, N, 1.0);
+  vec3 lit = col * (lightAt(vP, N, 1.0) + 0.08);
+  // faces point down toward the street and would sink into the hair; keep them readable
+  lit = max(lit, col * 0.52 * vFace);
   // sodium rim on the side facing a nearby lamp
   vec3 V = normalize(uCamPos - vP);
   float rim = pow(1.0 - max(dot(N, V), 0.0), 2.0);
@@ -175,8 +197,8 @@ void main() {
 }
 `;
 
-function material(pr: Proportions, unlit: boolean) {
-  return new THREE.ShaderMaterial({
+function material(pr: Proportions, unlit: boolean, style: [number, number, number], xray = false) {
+  const m = new THREE.ShaderMaterial({
     vertexShader: vert,
     fragmentShader: frag,
     uniforms: withShared({
@@ -185,8 +207,15 @@ function material(pr: Proportions, unlit: boolean) {
       uHeads: { value: HEADS.map((c) => new THREE.Vector3(...c)) },
       uFaces: { value: FACES.map((c) => new THREE.Vector3(...c)) },
       uUnlit: { value: unlit ? 1 : 0 },
+      uStyle: { value: new THREE.Vector4(style[0], style[1], style[2], 0) },
+      uXray: { value: xray ? 1 : 0 },
     }),
   });
+  if (xray) {
+    m.depthFunc = THREE.GreaterDepth;
+    m.depthWrite = false;
+  }
+  return m;
 }
 
 export interface Pose {
@@ -215,11 +244,24 @@ export interface Pose {
 }
 
 export function defaultPose(): Pose {
-  return {
-    x: 0, y: 0, z: 0, yaw: 0, phase: 0, stride: 0, crouch: 0, squash: 0, lean: 0, leanSide: 0, reach: 0,
-    tilt: 0, tiltYaw: 0, armSwing: 1, kneeAmp: 0.9, bob: 0.032, coatLen: 1, coat: P.bone, legs: P.boneTrim,
-    scale: 1, head: 0, fade: 1,
-  };
+  const p = {} as Pose;
+  resetPose(p);
+  return p;
+}
+
+/** Reset in place (no allocation: this runs for every person every frame). */
+export function resetPose(p: Pose) {
+  p.x = p.y = p.z = p.yaw = p.phase = p.stride = p.crouch = p.squash = 0;
+  p.lean = p.leanSide = p.reach = p.tilt = p.tiltYaw = 0;
+  p.armSwing = 1;
+  p.kneeAmp = 0.9;
+  p.bob = 0.045;
+  p.coatLen = 1;
+  p.coat = P.bone;
+  p.legs = P.boneTrim;
+  p.scale = 1;
+  p.head = 0;
+  p.fade = 1;
 }
 
 class Figures {
@@ -228,7 +270,7 @@ class Figures {
   private bufs: Record<string, { arr: Float32Array; attr: THREE.InstancedBufferAttribute; size: number }> = {};
   n = 0;
 
-  constructor(pr: Proportions, max: number, unlit: boolean) {
+  constructor(pr: Proportions, max: number, unlit: boolean, style: [number, number, number] = [0, 0, 0], xray = false) {
     this.geo = buildFigure(pr);
     const add = (name: string, size: number) => {
       const arr = new Float32Array(max * size);
@@ -244,7 +286,7 @@ class Figures {
     add('iLegs', 3);
     add('iMisc', 4);
     this.max = max;
-    this.mesh = new THREE.Mesh(this.geo, material(pr, unlit));
+    this.mesh = new THREE.Mesh(this.geo, material(pr, unlit, style, xray));
     this.mesh.frustumCulled = false;
   }
 
@@ -252,6 +294,12 @@ class Figures {
 
   begin() {
     this.n = 0;
+  }
+
+  /** Copy instance 0 of another set (same layout). */
+  copyFrom(o: Figures) {
+    for (const k in this.bufs) this.bufs[k].arr.set(o.bufs[k].arr.subarray(0, this.bufs[k].size));
+    this.n = o.n;
   }
 
   add(p: Pose) {
@@ -281,5 +329,10 @@ class Figures {
 
 export class People {
   readonly crowd = new Figures(HUMAN, MAX_PEOPLE, false);
-  readonly chaser = new Figures(CHASER, 1, true);
+  // The player is drawn on its own, after a dithered x-ray of itself that only lands where
+  // something else is in front. Drawing the x-ray first means the player's own limbs never show through.
+  readonly xray = new Figures(HUMAN, 1, false, [0, 0, 0], true);
+  readonly player = new Figures(HUMAN, 1, false);
+  // head tilted, drooping, rocking side to side: nothing else on the street walks like this
+  readonly chaser = new Figures(CHASER, 1, true, [0.2, 0.085, 0.32]);
 }

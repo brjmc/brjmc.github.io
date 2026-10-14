@@ -138,8 +138,9 @@ canvas {
 .card {
   position: absolute;
   left: 50%;
-  top: 46%;
-  transform: translate(-50%, -50%);
+  /* above the player, who stands a little below the middle of a portrait frame */
+  top: max(calc(var(--safe-t) + 64px), 11%);
+  transform: translateX(-50%);
   width: min(82vw, 340px);
   padding: 22px 22px 18px;
   background: color-mix(in srgb, var(--ink) 82%, transparent);
@@ -149,6 +150,14 @@ canvas {
 }
 .card.on {
   display: block;
+}
+@media (orientation: landscape) {
+  .card {
+    left: calc(var(--safe-l) + 4px);
+    top: calc(var(--safe-t) + 48px);
+    transform: none;
+    width: min(42vw, 340px);
+  }
 }
 .card .kicker {
   font-size: 10px;

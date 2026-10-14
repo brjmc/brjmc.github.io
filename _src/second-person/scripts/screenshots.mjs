@@ -18,7 +18,7 @@ mkdirSync(outDir, { recursive: true });
 let server = null;
 let base = urlArg;
 if (!base) {
-  server = await createServer({ root, logLevel: 'error', server: { port: 5181, strictPort: false } });
+  server = await createServer({ root, logLevel: 'error', server: { port: 5181, strictPort: false, hmr: false, watch: null } });
   await server.listen();
   base = server.resolvedUrls.local[0];
 }
