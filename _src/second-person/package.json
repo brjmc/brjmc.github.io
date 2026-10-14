@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/screenshots.mjs",
     "perf": "node scripts/perf.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "filmstrip": "node scripts/filmstrip.mjs",
     "publish:site": "npm run build && node scripts/publish.mjs"
   },
   "dependencies": {

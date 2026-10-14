@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0e14" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Second Person: the walk home. Something is behind you. It walks." />
+    <title>Second Person — the walk home</title>
+    <script type="module" crossorigin src="./assets/index-DztxJ1U8.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DvDFDm5o.css">
+  </head>
+  <body data-stage="brief">
+    <canvas id="c" aria-label="Second Person: the walk home"></canvas>
+
+    <div class="hud">
+      <div class="top">
+        <div class="bar" id="bar" aria-hidden="true">
+          <i class="track"></i>
+          <i class="goal"></i>
+          <i class="dot it" id="bar-it"></i>
+          <i class="dot you" id="bar-you"></i>
+        </div>
+        <div class="row">
+          <span class="cue" id="cue" role="status" aria-live="polite"></span>
+          <span class="metres" id="metres"></span>
+        </div>
+      </div>
+
+      <div class="card" id="card" role="dialog" aria-live="polite">
+        <div class="kicker" id="card-kicker"></div>
+        <h1 id="card-title"></h1>
+        <div class="body" id="card-body"></div>
+        <div class="foot" id="card-foot"></div>
+      </div>
+
+      <div class="buttons">
+        <button id="mute" type="button" aria-pressed="false">Sound on</button>
+        <button id="restart" type="button">Restart</button>
+      </div>
+    </div>
+
+  </body>
+</html>

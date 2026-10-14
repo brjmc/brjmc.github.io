@@ -58,16 +58,18 @@ void main() {
 
   // finish spill: the last pool's outer bands climbing the bottom edge
   if (uSpill > 0.0) {
-    float y = vUv.y;
-    float h = uSpill * 0.32;
-    float b = step(y, h) * 0.18 + step(y, h * 0.55) * 0.14 + step(y, h * 0.22) * 0.12;
-    c = mix(c, uSodium, b * uSpill);
+    float y = vUv.y - 0.06 * pow(abs(vUv.x - 0.5) * 2.0, 2.0) * uSpill;
+    float h = uSpill * 0.42;
+    float w = fwidth(y);
+    float b = (1.0 - smoothstep(h - w, h + w, y)) * 0.16 + (1.0 - smoothstep(h * 0.6 - w, h * 0.6 + w, y)) * 0.16 + (1.0 - smoothstep(h * 0.28 - w, h * 0.28 + w, y)) * 0.16;
+    // gently arched, as if the pool's rings were centred just behind the lens
+    c = mix(c, c * 0.45 + uSodium * 0.75, b * (0.45 + 0.55 * uSpill));
   }
 
   // desaturate, but keep the two warm inks
   float lum = dot(c, vec3(0.299, 0.587, 0.114));
   float warm = smoothstep(0.1, 0.3, c.r - c.b);
-  float ds = max(uDesat * 0.8, uDeath);
+  float ds = clamp(max(uDesat * 0.8, uDeath), 0.0, 1.0);
   c = mix(c, mix(vec3(lum), c, warm * 0.85), ds);
   c = mix(c, uEmber, uFlash * 0.35);
 

@@ -226,7 +226,7 @@ export class Renderer {
     this.beams.begin();
     for (const h of this.posts.heads) {
       this.halos.add(h.x, h.y - 0.08, h.z, 1.25, P.sodium, 0.9);
-      if (this.tier.cones) this.beams.add(h.x, h.y - 0.06, h.z, 0, -1, 0, h.y - 0.05, 2.4, P.sodium, 0.05);
+      if (this.tier.cones) this.beams.add(h.x, h.y - 0.06, h.z, 0, -1, 0, h.y - 0.05, 2.4, P.sodium, 0.075);
     }
 
     /* ---------- cars ---------- */
@@ -274,8 +274,8 @@ export class Renderer {
     /* ---------- finish pool ---------- */
     const remaining = w.remaining;
     const fin = clamp01(1 - remaining / w.tune.finishGlowDist);
-    shared.uFinish.value.set(-3.5, 3.5, w.cfg.length + 3, fin);
-    this.post.uniforms.uSpill.value = fin * fin;
+    shared.uFinish.value.set(camX, 3.5, w.cfg.length + 3, fin);
+    this.post.uniforms.uSpill.value = fin;
 
     /* ---------- people ---------- */
     this.posePeople(game);
@@ -368,7 +368,7 @@ export class Renderer {
     for (const q of w.peds) {
       const z = lerp(q.pz, q.z, a);
       const dz = z - camZ;
-      if (dz < 0.6 || dz > 92) continue;
+      if (dz < 1.5 || dz > 92) continue;
       const x = lerp(q.px, q.x, a);
       resetPose(pose);
       pose.x = x;
@@ -397,9 +397,9 @@ export class Renderer {
       pose.coatLen = [0, 0.35, 0.35, 0.9][(look >> 2) % 4];
       pose.scale = q.scale;
       pose.armSwing = 0.8 + 0.4 * q.seed;
-      pose.fade = THREE.MathUtils.smoothstep(dz, 1.3, 3.8);
+      pose.fade = THREE.MathUtils.smoothstep(dz, 2.4, 4.4);
       crowd.add(pose);
-      this.shadows.add(x, KERB_H, -z, 0.42 * q.scale);
+      if (pose.fade > 0.5) this.shadows.add(x, KERB_H, -z, 0.42 * q.scale);
     }
 
     /* player */

@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const tier = process.argv[2] ?? '1';
+const level = Number(process.argv[3] ?? 4);
+const walk = Number(process.argv[4] ?? 16);
 const server = await createServer({ root, logLevel: 'error', server: { port: 5183, hmr: false, watch: null } });
 await server.listen();
 const base = server.resolvedUrls.local[0];
@@ -18,10 +20,10 @@ const cdp = await page.context().newCDPSession(page);
 await page.goto(`${base}?test&q=${tier}`);
 await page.waitForFunction(() => window.__sp && window.__sp.frames > 3);
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-const res = await page.evaluate(async () => {
+const res = await page.evaluate(async ([level, walk]) => {
   const sp = window.__sp;
-  sp.load(4, 5, 'play');
-  sp.walk(16);
+  sp.load(level, 5, 'play');
+  sp.walk(walk);
   const w = sp.game.world;
   w.pointerDown(195, 790);
   const cpu = [];
@@ -52,7 +54,7 @@ const res = await page.evaluate(async () => {
   const med = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
   const p90 = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length * 0.9)];
   return { cpuMed: med(cpu), cpuP90: p90(cpu), frameMed: med(frame), calls, tris, peds: w.peds.length, cars: w.cars.length };
-});
-console.log(JSON.stringify({ tier, throttle: '4x', ...res }, null, 0));
+}, [level, walk]);
+console.log(JSON.stringify({ tier, level, walk, throttle: '4x', ...res }, null, 0));
 await browser.close();
 await server.close();

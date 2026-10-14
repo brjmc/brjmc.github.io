@@ -37,6 +37,14 @@ const shots = [
   { name: 'L1-start', level: 1, seed: 11, stage: 'play', walk: 1.6 },
   { name: 'L4-mid', level: 4, seed: 5, stage: 'play', walk: 18, car: true },
 ];
+// extra states, portrait only, with --states
+const states = [
+  { name: 'S-finish', level: 1, seed: 11, stage: 'play', walk: 26.5 },
+  { name: 'S-dread', level: 2, seed: 3, stage: 'play', walk: 3, js: 'const w = sp.game.world; w.chaser.x = w.player.x + 0.4; w.chaser.z = w.player.z + 2.4; sp.renderer.dread = 0.9;' },
+  { name: 'S-jam', level: 3, seed: 2, stage: 'play', walk: 13 },
+  { name: 'S-nearmiss', level: 4, seed: 5, stage: 'play', walk: 18, car: true, js: 'sp.renderer.onEvents([{ t: "nearMiss", id: 0, x: 0, z: 0, dx: 1 }], sp.game.world.time); sp.renderer.fx.desat = 99;' },
+];
+const withStates = args.includes('--states');
 
 for (const size of sizes) {
   const page = await browser.newPage({ viewport: { width: size.width, height: size.height }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
@@ -46,12 +54,14 @@ for (const size of sizes) {
   page.on('pageerror', (e) => console.log(`[${size.name}] pageerror: ${e.message}`));
   await page.goto(`${base}?test${extra ? '&' + extra : ''}`);
   await page.waitForFunction(() => window.__sp && window.__sp.frames > 3, null, { timeout: 60000 });
-  for (const s of shots) {
+  for (const s of size.name === 'portrait' && withStates ? [...shots, ...states] : shots) {
     await page.evaluate((s) => {
       const sp = window.__sp;
       sp.load(s.level, s.seed, s.stage);
       if (s.walk) sp.walk(s.walk);
       if (s.car) sp.walkUntilCar(4, 26, 12);
+      if (sp.renderer) sp.renderer.fx.desat = 0;
+      if (s.js) new Function('sp', s.js)(sp);
       sp.pause(true);
     }, s);
     const f0 = await page.evaluate(() => window.__sp.frames);

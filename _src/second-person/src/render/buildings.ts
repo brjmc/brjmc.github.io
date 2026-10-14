@@ -94,7 +94,7 @@ void main() {
         float bu = u - bi * bayW;
         float doorBay = floor(h1(seed, 2.0) * nb);
         float lit = h1(seed, 10.0 + bi);
-        vec3 glassLit = lit < 0.32 ? uSodium * (0.55 + 0.15 * v / 2.75) : lit < 0.44 ? uColdWin * (0.26 + 0.06 * v / 2.75) : vec3(-1.0);
+        vec3 glassLit = lit < 0.32 ? uSodium * (0.4 + 0.12 * v / 2.75) : lit < 0.44 ? uColdWin * (0.26 + 0.06 * v / 2.75) : vec3(-1.0);
         // pilasters and fascia
         col = wall * 0.82;
         float glass = boxMask(vec2(bu, v), vec2(0.42, 0.6), vec2(bayW - 0.42, 2.72));
@@ -143,7 +143,7 @@ void main() {
         vec3 V = normalize(Pw - uCamPos);
         vec3 dark = mix(wall * 0.38, uHazeLow * 0.5, pow(1.0 - abs(dot(N, V)), 4.0));
         vec3 g = dark;
-        if (lit < 0.28) g = uSodium * 0.62;
+        if (lit < 0.28) g = uSodium * 0.5;
         else if (lit < 0.42) g = uColdWin * 0.42;
         // half-drawn blinds
         float blindLine = 1.95 - blind * 1.2;

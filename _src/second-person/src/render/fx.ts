@@ -267,15 +267,15 @@ export class Drizzle {
         attribute vec4 iSeed; uniform vec4 uBox; uniform vec2 uRes;
         varying float vA; varying vec3 vCol;
         void main() {
-          // a 22 x 9 x 48 m box ahead of the camera; drops fall at ~6 m/s with a little wind
-          vec3 size = vec3(22.0, 9.0, 48.0);
+          // a 16 x 6 x 32 m box ahead of the camera, where the lamp cones are; ~6 m/s with a little wind
+          vec3 size = vec3(16.0, 6.0, 32.0);
           float fall = 5.5 + iSeed.w * 1.5;
           vec3 base = (iSeed.xyz - 0.5) * size;
           base.y = mod(iSeed.y * size.y - uTime * fall, size.y);
           base.x = mod(base.x + uTime * 0.6 - uBox.x + size.x * 0.5, size.x) - size.x * 0.5;
           base.z = mod(base.z - uBox.z + size.z * 0.5, size.z) - size.z * 0.5;
-          vec3 pa = vec3(uBox.x + base.x, base.y, uBox.z + base.z - 22.0);
-          vec3 pb = pa + vec3(0.06, -0.42, 0.0);
+          vec3 pa = vec3(uBox.x + base.x, base.y, uBox.z + base.z - 17.0);
+          vec3 pb = pa + vec3(0.06, -0.5, 0.0);
           // only visible where a lamp or headlight reaches
           float sod = 0.0;
           for (int i = 0; i < MAX_LAMPS; i++) {

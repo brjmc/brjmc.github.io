@@ -167,7 +167,6 @@ void main() {
     gl_FragColor = vec4(vCol * 0.85, 1.0);
     return;
   }
-  if (vFade < 0.999 && bayer4(gl_FragCoord.xy) > vFade) discard;
   vec3 N = normalize(vN);
   if (uUnlit > 0.5) {
     // the chaser: flat ink, ember eyes, no fog
@@ -193,7 +192,9 @@ void main() {
   }
   lit += uSodium * stepAA(0.5, rim * near * 2.0) * 0.35;
   float f = fogAmount(vP);
-  gl_FragColor = vec4(mix(lit, uFogCol, f), 1.0);
+  // right at the lens people become flat foreground silhouettes, like the framing figures in a print
+  vec3 sil = mix(uInk, uFogCol, 0.16);
+  gl_FragColor = vec4(mix(mix(lit, uFogCol, f), sil, 1.0 - vFade), 1.0);
 }
 `;
 
