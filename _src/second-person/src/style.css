@@ -1,0 +1,206 @@
+:root {
+  --ink: #0b0e14;
+  --bone: #e9dfc7;
+  --dust: #8c9aa0;
+  --sodium: #f2c53c;
+  --ember: #e0552f;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --safe-t: max(12px, env(safe-area-inset-top));
+  --safe-b: max(12px, env(safe-area-inset-bottom));
+  --safe-l: max(14px, env(safe-area-inset-left));
+  --safe-r: max(14px, env(safe-area-inset-right));
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--ink);
+}
+
+body {
+  font-family: var(--mono);
+  color: var(--bone);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  position: fixed;
+  inset: 0;
+}
+
+canvas {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ---------- progress ---------- */
+.top {
+  position: absolute;
+  top: var(--safe-t);
+  left: var(--safe-l);
+  right: var(--safe-r);
+}
+
+.bar {
+  position: relative;
+  height: 12px;
+}
+.bar .track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5.5px;
+  height: 1px;
+  background: color-mix(in srgb, var(--bone) 28%, transparent);
+}
+.bar .goal {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 2px;
+  height: 12px;
+  background: var(--sodium);
+}
+.bar .dot {
+  --p: 0;
+  position: absolute;
+  top: 2px;
+  left: calc(var(--p) * (100% - 8px));
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.bar .you {
+  background: var(--bone);
+}
+.bar .it {
+  background: var(--ink);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--bone) 35%, transparent),
+    inset 0 0 0 2px var(--ink);
+}
+.bar .it::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--ember);
+}
+.bar .it.behind {
+  opacity: 0.45;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+.metres {
+  color: var(--dust);
+  font-variant-numeric: tabular-nums;
+}
+.cue {
+  color: var(--dust);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.cue.on {
+  opacity: 1;
+}
+.cue.danger {
+  color: var(--ember);
+}
+
+/* ---------- cards ---------- */
+.card {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  width: min(82vw, 340px);
+  padding: 22px 22px 18px;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--bone) 25%, transparent);
+  display: none;
+  pointer-events: auto;
+}
+.card.on {
+  display: block;
+}
+.card .kicker {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--dust);
+  text-transform: uppercase;
+}
+.card h1 {
+  margin: 10px 0 12px;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.card .body p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--bone) 80%, transparent);
+}
+.card .foot {
+  margin-top: 16px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--sodium);
+}
+.card[data-kind='failed'] h1 {
+  color: var(--ember);
+}
+
+/* ---------- buttons ---------- */
+.buttons {
+  position: absolute;
+  right: var(--safe-r);
+  bottom: var(--safe-b);
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+button {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dust);
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dust) 28%, transparent);
+  border-radius: 2px;
+  padding: 9px 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:focus-visible {
+  outline: 2px solid var(--sodium);
+  outline-offset: 2px;
+}

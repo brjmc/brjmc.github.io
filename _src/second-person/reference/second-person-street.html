@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Second Person — street</title>
+<style>
+  :root{ --ink:#0b0e14; --bone:#e9dfc7; --dust:#8c9aa0; --mark:#f2c53c; --blood:#e0552f; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#0b0e14}
+  body{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+       -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+  canvas{display:block;position:fixed;inset:0;touch-action:none}
+
+  .hud{position:fixed;inset:0;pointer-events:none}
+  .tag{position:absolute;top:max(14px,env(safe-area-inset-top));left:14px;
+       font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dust);opacity:.65;line-height:1.7}
+  .tag b{display:block;color:var(--bone);font-weight:500;opacity:.85}
+  .readout{position:absolute;right:14px;top:max(14px,env(safe-area-inset-top));text-align:right;
+           font-size:10px;letter-spacing:.14em;color:var(--dust);opacity:.5;line-height:1.7;white-space:pre}
+  .hint{position:absolute;left:50%;top:15%;transform:translateX(-50%);text-align:center;color:var(--bone);
+        opacity:.8;font-size:12px;letter-spacing:.06em;line-height:1.9;transition:opacity .8s ease;
+        text-shadow:0 1px 12px rgba(0,0,0,.7)}
+  .hint.gone{opacity:0}
+
+  .dead{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .dead.on{display:flex}
+  .dead h1{font-size:13px;letter-spacing:.4em;text-transform:uppercase;color:var(--blood);font-weight:600}
+  .dead p{font-size:11px;letter-spacing:.14em;color:var(--dust)}
+
+  .bar{position:absolute;left:14px;right:14px;bottom:max(14px,env(safe-area-inset-bottom));
+       display:flex;gap:8px;justify-content:flex-end;pointer-events:auto}
+  button{font:inherit;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dust);
+         background:rgba(12,16,22,.55);border:1px solid rgba(140,154,160,.28);border-radius:2px;
+         padding:9px 12px;cursor:pointer;backdrop-filter:blur(6px);transition:color .15s,border-color .15s,background .15s}
+  button[aria-pressed="true"]{color:var(--ink);background:var(--mark);border-color:var(--mark)}
+  button:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud">
+  <div class="tag"><b>Second person</b>street</div>
+  <div class="readout" id="readout"></div>
+  <p class="hint" id="hint">Touch the pavement to move.<br>The crowd will slow you. The road will not.</p>
+  <div class="dead" id="dead">
+    <h1>Hit</h1>
+    <p>Touch to step back onto the kerb</p>
+  </div>
+  <div class="bar">
+    <button id="chase" aria-pressed="false">Chaser</button>
+    <button id="reset">Reset</button>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const readout = document.getElementById('readout');
+const hintEl = document.getElementById('hint');
+const deadEl = document.getElementById('dead');
+
+/* ---------- palette: dusk, sodium light ---------- */
+const SKY_HI='#141b28', SKY_LO='#46525c', HAZE='#4f5c66';
+const WALK='#5c626a', WALK2='#535962', ROAD='#23272c', CURB='#767b82';
+const PAINT='#c9c2a6', BONE='#e9dfc7', MARK='#f2c53c', BLOOD='#e0552f';
+
+/* ---------- street layout (metres) ---------- */
+const WALK_X0=-7.0, WALK_X1=-0.15;      // near pavement
+const ROAD_X0=0.0,  ROAD_X1=10.0;       // carriageway
+const FAR_X0=10.15, FAR_X1=14.0;        // far pavement
+const LANE_NEAR=2.6, LANE_FAR=7.4;      // lane centres
+
+/* ---------- viewport ---------- */
+let W=0,H=0,DPR=1,F=600,CX=0,CY=0;
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  F=H*0.85; CX=W/2; CY=H*0.54;
+}
+addEventListener('resize',resize); resize();
+
+/* ---------- camera: in front of the character, looking back ---------- */
+const CAM_H=2.55, CAM_DIST=6.2, PITCH=0.20, NEAR=0.45;
+const CP=Math.cos(PITCH), SP=Math.sin(PITCH);
+const cam={x:-3.5,y:CAM_H,z:-CAM_DIST};
+const horizon=()=>CY-F*Math.tan(PITCH);
+
+function toCam(x,y,z){const dx=x-cam.x,dy=y-cam.y,dz=z-cam.z;
+  return {X:dx, Y:dy*CP+dz*SP, Z:-dy*SP+dz*CP};}
+const sx=c=>CX+F*c.X/c.Z, sy=c=>CY-F*c.Y/c.Z;
+
+function unproject(px,py){
+  const a=(px-CX)/F, b=(CY-py)/F, dy=b*CP-SP;
+  if(dy>-0.02) return null;
+  const t=-cam.y/dy;
+  return {x:cam.x+t*a, z:cam.z+t*(b*SP+CP)};
+}
+
+/* ---------- colour ---------- */
+function hexv(h){const n=parseInt(h.slice(1),16);return [n>>16&255,n>>8&255,n&255];}
+function mix(a,b,t){const A=hexv(a),B=hexv(b);
+  return `rgb(${A[0]+(B[0]-A[0])*t|0},${A[1]+(B[1]-A[1])*t|0},${A[2]+(B[2]-A[2])*t|0})`;}
+const fogT=z=>Math.max(0,Math.min(1,(z-10)/34));
+
+/* ---------- polygon fill with near-plane clipping ---------- */
+function clipPoly(pts){
+  const out=[];
+  for(let i=0;i<pts.length;i++){
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    const ain=a.Z>=NEAR, bin=b.Z>=NEAR;
+    if(ain) out.push(a);
+    if(ain!==bin){
+      const t=(NEAR-a.Z)/(b.Z-a.Z);
+      out.push({X:a.X+(b.X-a.X)*t, Y:a.Y+(b.Y-a.Y)*t, Z:NEAR});
+    }
+  }
+  return out;
+}
+function fillWorld(pts, color, alpha){
+  const cs=clipPoly(pts.map(p=>toCam(p[0],p[1],p[2])));
+  if(cs.length<3) return;
+  if(alpha!==undefined){ctx.save();ctx.globalAlpha=alpha;}
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(sx(cs[0]),sy(cs[0]));
+  for(let i=1;i<cs.length;i++) ctx.lineTo(sx(cs[i]),sy(cs[i]));
+  ctx.closePath(); ctx.fill();
+  if(alpha!==undefined) ctx.restore();
+}
+function lineWorld(a,b,color,alpha,width){
+  let p=toCam(a[0],a[1],a[2]), q=toCam(b[0],b[1],b[2]);
+  if(p.Z<NEAR&&q.Z<NEAR) return;
+  if(p.Z<NEAR){const t=(NEAR-p.Z)/(q.Z-p.Z);p={X:p.X+(q.X-p.X)*t,Y:p.Y+(q.Y-p.Y)*t,Z:NEAR};}
+  else if(q.Z<NEAR){const t=(NEAR-q.Z)/(p.Z-q.Z);q={X:q.X+(p.X-q.X)*t,Y:q.Y+(p.Y-q.Y)*t,Z:NEAR};}
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.lineWidth=width||1;
+  ctx.beginPath(); ctx.moveTo(sx(p),sy(p)); ctx.lineTo(sx(q),sy(q)); ctx.stroke(); ctx.restore();
+}
+
+/* ---------- deterministic noise ---------- */
+function hash(i,j,k){
+  let h=(i*374761393+j*668265263+k*1442695040)|0;
+  h=(h^(h>>13))*1274126177;
+  return ((h^(h>>16))>>>0)/4294967296;
+}
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+/* ---------- buildings & street furniture ---------- */
+const BLOCK=9;
+const FACADE=['#2c343b','#333a3f','#2a3138','#38393a','#303a3e'];
+function blockAt(bi){
+  const out=[];
+  for(const side of [0,1]){
+    const r1=hash(bi,side,3), r2=hash(bi,side,7), r3=hash(bi,side,11);
+    const h=6+r1*17;
+    const z0=bi*BLOCK+0.35, z1=(bi+1)*BLOCK-0.35;
+    const col=FACADE[(r2*FACADE.length)|0];
+    out.push(side===0
+      ? {kind:'bldg', x0:WALK_X0-11, x1:WALK_X0, z0, z1, h, col, faceX:WALK_X0, dir:1, seed:bi*2+side}
+      : {kind:'bldg', x0:FAR_X1, x1:FAR_X1+11, z0, z1, h, col, faceX:FAR_X1, dir:-1, seed:bi*2+side});
+    if(r3<0.7){ // lamp post on the near kerb
+      const z=bi*BLOCK+r3*BLOCK;
+      out.push({kind:'lamp', x:-0.75, z});
+    }
+    if(hash(bi,side,17)<0.35){ // bin against the shopfronts
+      out.push({kind:'bin', x:WALK_X0+0.7+hash(bi,side,19)*0.6, z:bi*BLOCK+hash(bi,side,23)*BLOCK});
+    }
+  }
+  return out;
+}
+function nearbyBlocks(pz){
+  const list=[]; const b0=Math.floor((pz-30)/BLOCK), b1=Math.floor((pz+70)/BLOCK);
+  for(let b=b0;b<=b1;b++) list.push(...blockAt(b));
+  return list;
+}
+
+/* ---------- actors ---------- */
+const player={x:-3.5,z:0,tx:-3.5,tz:0,moving:false,phase:0,base:4.4,slow:0,facing:-1,dead:false};
+const chaser={on:false,x:-3.5,z:16,phase:0,speed:3.6};
+
+const peds=[];
+function spawnPed(p, pz, anywhere){
+  const far = Math.random()<0.24;
+  p.far=far;
+  p.x = far ? rnd(FAR_X0+0.6, FAR_X1-0.5) : rnd(WALK_X0+0.5, WALK_X1-0.5);
+  p.z = anywhere ? rnd(pz-22, pz+55) : (Math.random()<0.6 ? pz+rnd(46,62) : pz-rnd(20,30));
+  p.dir = Math.random()<0.5 ? 1 : -1;
+  p.spd = Math.random()<0.12 ? 0 : rnd(0.7,1.9);
+  p.wobble = Math.random()*6.28;
+  p.phase = Math.random()*6.28;
+  p.scale = rnd(0.9,1.08);
+  const c=['#7d8794','#8f7f6e','#6d7b83','#93887a','#5f6b78','#a09484','#71685f','#849097'];
+  p.skin = c[(Math.random()*c.length)|0];
+  p.trim = mix(p.skin,'#0b0e14',0.45);
+  p.r = 0.33;
+}
+for(let i=0;i<48;i++){const p={};spawnPed(p,0,true);peds.push(p);}
+
+/* ---------- traffic ---------- */
+const cars=[];
+const CARCOL=['#8d2f28','#25333f','#3c4a3a','#6d6a60','#1d1f24','#4a3550','#7a6a3a'];
+let nextNear=rnd(0.4,2.0), nextFar=rnd(0.8,2.6);
+function spawnCar(lane, pz){
+  const toward = lane===0;                    // near lane drives at the camera
+  const long = Math.random()<0.18;
+  cars.push({
+    x: (lane===0?LANE_NEAR:LANE_FAR) + rnd(-0.25,0.25),
+    z: toward ? pz+78 : pz-34,
+    dir: toward ? -1 : 1,
+    spd: rnd(15,24),
+    w: 1.95, d: long?7.2:4.4, h: long?2.7:1.42,
+    col: CARCOL[(Math.random()*CARCOL.length)|0],
+    lane
+  });
+}
+
+/* ---------- state ---------- */
+let deathT=0;
+function reset(){
+  player.x=-3.5; player.z=0; player.tx=-3.5; player.tz=0;
+  player.moving=false; player.slow=0; player.dead=false;
+  cam.x=-3.5; cam.z=-CAM_DIST;
+  chaser.x=-3.5; chaser.z=16;
+  cars.length=0; deathT=0;
+  peds.forEach(p=>spawnPed(p,0,true));
+  deadEl.classList.remove('on');
+}
+function kill(){
+  if(player.dead) return;
+  player.dead=true; player.moving=false; deathT=1.4;
+  deadEl.classList.add('on');
+}
+
+/* ---------- input ---------- */
+let down=false, touched=false;
+function aim(px,py){
+  const g=unproject(px,py); if(!g) return;
+  player.tx=g.x; player.tz=g.z; player.moving=true;
+  if(!touched){touched=true;hintEl.classList.add('gone');}
+}
+cv.addEventListener('pointerdown',e=>{
+  if(player.dead){ if(deathT<=0) reset(); return; }
+  down=true; cv.setPointerCapture(e.pointerId); aim(e.clientX,e.clientY);
+});
+cv.addEventListener('pointermove',e=>{ if(down&&!player.dead) aim(e.clientX,e.clientY); });
+cv.addEventListener('pointerup',()=>down=false);
+cv.addEventListener('pointercancel',()=>down=false);
+
+document.getElementById('reset').addEventListener('click',reset);
+const chaseBtn=document.getElementById('chase');
+chaseBtn.addEventListener('click',()=>{
+  chaser.on=!chaser.on;
+  chaseBtn.setAttribute('aria-pressed',String(chaser.on));
+  if(chaser.on){chaser.x=player.x;chaser.z=player.z+15;}
+});
+
+/* ---------- update ---------- */
+function update(dt){
+  const props=nearbyBlocks(player.z);
+
+  if(!player.dead){
+    player.slow=Math.max(0,player.slow-dt);
+    const speed=player.base*(player.slow>0?0.32:1);
+    if(player.moving){
+      const dx=player.tx-player.x, dz=player.tz-player.z, d=Math.hypot(dx,dz);
+      if(d<0.12) player.moving=false;
+      else{
+        const step=Math.min(speed*dt,d);
+        player.x+=dx/d*step; player.z+=dz/d*step;
+        player.phase+=step*2.6;
+        player.facing=dz<0?-1:1;
+      }
+    }
+  }
+
+  // pedestrians
+  for(const p of peds){
+    p.z += p.dir*p.spd*dt;
+    p.wobble += dt*1.4;
+    p.x += Math.sin(p.wobble)*0.22*dt;
+    p.phase += p.spd*dt*2.4;
+    const lo=p.far?FAR_X0+0.35:WALK_X0+0.35, hi=p.far?FAR_X1-0.35:WALK_X1-0.35;
+    if(p.x<lo) p.x=lo; if(p.x>hi) p.x=hi;
+    if(p.z<player.z-28 || p.z>player.z+66) spawnPed(p,player.z,false);
+  }
+  // loose crowd separation so they don't stack
+  for(let i=0;i<peds.length;i++){
+    const a=peds[i];
+    for(let j=i+1;j<peds.length;j++){
+      const b=peds[j];
+      if(a.far!==b.far) continue;
+      const dx=b.x-a.x, dz=b.z-a.z, d2=dx*dx+dz*dz;
+      if(d2>0.42 || d2<1e-6) continue;
+      const d=Math.sqrt(d2), o=(0.65-d)*0.5, ux=dx/d, uz=dz/d;
+      a.x-=ux*o; a.z-=uz*o; b.x+=ux*o; b.z+=uz*o;
+    }
+  }
+  // crowd vs player: push apart and sap momentum
+  if(!player.dead){
+    for(const p of peds){
+      if(p.far) continue;
+      const dx=player.x-p.x, dz=player.z-p.z, d=Math.hypot(dx,dz), min=p.r+0.34;
+      if(d<min && d>1e-4){
+        const ux=dx/d, uz=dz/d, o=min-d;
+        player.x+=ux*o*0.55; p.x-=ux*o*0.45; p.z-=uz*o*0.45; player.z+=uz*o*0.55;
+        player.slow=0.4;
+      }
+    }
+  }
+
+  // buildings are solid
+  const clampX=(a)=>{ a.x=Math.max(WALK_X0+0.35,Math.min(FAR_X1-0.35,a.x)); };
+  clampX(player);
+  for(const o of props){
+    if(o.kind==='lamp'||o.kind==='bin'){
+      const r=o.kind==='lamp'?0.28:0.45;
+      const dx=player.x-o.x, dz=player.z-o.z, d=Math.hypot(dx,dz), min=r+0.34;
+      if(d<min&&d>1e-4){ player.x+=dx/d*(min-d); player.z+=dz/d*(min-d); player.slow=Math.max(player.slow,0.2); }
+    }
+  }
+
+  // traffic
+  nextNear-=dt; nextFar-=dt;
+  if(nextNear<=0){ spawnCar(0,player.z); nextNear=rnd(1.1,3.4); }
+  if(nextFar<=0){ spawnCar(1,player.z); nextFar=rnd(1.4,4.0); }
+  for(let i=cars.length-1;i>=0;i--){
+    const c=cars[i];
+    c.z += c.dir*c.spd*dt;
+    if(c.z<player.z-46 || c.z>player.z+96){ cars.splice(i,1); continue; }
+    if(!player.dead){
+      const hw=c.w/2+0.3, hd=c.d/2+0.3;
+      if(Math.abs(player.x-c.x)<hw && Math.abs(player.z-c.z)<hd) kill();
+    }
+  }
+
+  if(chaser.on && !player.dead){
+    const dx=player.x-chaser.x, dz=player.z-chaser.z, d=Math.hypot(dx,dz)||1;
+    chaser.x+=dx/d*chaser.speed*dt; chaser.z+=dz/d*chaser.speed*dt;
+    chaser.phase+=chaser.speed*dt*2.2;
+    if(d<0.9){ chaser.x=player.x-dx/d*18; chaser.z=player.z-dz/d*18; player.slow=0.6; }
+  }
+
+  // camera holds the character near centre; lateral lag is deliberate
+  const kx=1-Math.exp(-4.5*dt), kz=1-Math.exp(-7*dt);
+  cam.x+=(player.x-cam.x)*kx;
+  cam.z+=((player.z-CAM_DIST)-cam.z)*kz;
+
+  if(deathT>0) deathT-=dt;
+  return props;
+}
+
+/* ---------- street surface ---------- */
+function street(){
+  const hz=horizon();
+  const sky=ctx.createLinearGradient(0,0,0,Math.max(hz,1));
+  sky.addColorStop(0,SKY_HI); sky.addColorStop(1,SKY_LO);
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,Math.max(hz,0));
+  ctx.fillStyle=mix(ROAD,'#0b0e14',0.35); ctx.fillRect(0,Math.max(hz,0),W,H-hz);
+
+  const zA=cam.z-40, zB=cam.z+90;
+  fillWorld([[ROAD_X0,0,zA],[ROAD_X1,0,zA],[ROAD_X1,0,zB],[ROAD_X0,0,zB]],ROAD);
+  fillWorld([[WALK_X0,0.14,zA],[WALK_X1,0.14,zA],[WALK_X1,0.14,zB],[WALK_X0,0.14,zB]],WALK);
+  fillWorld([[FAR_X0,0.14,zA],[FAR_X1,0.14,zA],[FAR_X1,0.14,zB],[FAR_X0,0.14,zB]],WALK2);
+  // kerb faces
+  fillWorld([[WALK_X1,0,zA],[WALK_X1,0.14,zA],[WALK_X1,0.14,zB],[WALK_X1,0,zB]],CURB);
+  fillWorld([[FAR_X0,0,zA],[FAR_X0,0.14,zA],[FAR_X0,0.14,zB],[FAR_X0,0,zB]],mix(CURB,'#000',0.25));
+
+  // paving joints
+  const z0=Math.floor(cam.z/2.2)*2.2;
+  for(let z=z0;z<cam.z+60;z+=2.2){
+    const a=1-fogT((z-cam.z)*CP);
+    if(a<0.05) continue;
+    lineWorld([WALK_X0,0.141,z],[WALK_X1,0.141,z],'#3f444b',0.35*a,1);
+    lineWorld([FAR_X0,0.141,z],[FAR_X1,0.141,z],'#3f444b',0.25*a,1);
+  }
+  lineWorld([WALK_X0+3.4,0.141,cam.z-10],[WALK_X0+3.4,0.141,cam.z+60],'#3f444b',0.2,1);
+
+  // centre dashes + lane edges
+  const d0=Math.floor(cam.z/6)*6;
+  for(let z=d0;z<cam.z+70;z+=6){
+    const a=0.55*(1-fogT((z-cam.z)*CP));
+    if(a<0.03) continue;
+    fillWorld([[4.9,0.01,z],[5.1,0.01,z],[5.1,0.01,z+3],[4.9,0.01,z+3]],PAINT,a);
+  }
+  lineWorld([0.55,0.01,cam.z-10],[0.55,0.01,cam.z+70],PAINT,0.18,1);
+  lineWorld([9.5,0.01,cam.z-10],[9.5,0.01,cam.z+70],PAINT,0.18,1);
+
+  // distance haze
+  const hg=ctx.createLinearGradient(0,hz,0,hz+H*0.34);
+  hg.addColorStop(0,HAZE); hg.addColorStop(1,'rgba(79,92,102,0)');
+  ctx.fillStyle=hg; ctx.fillRect(0,hz,W,H*0.34);
+}
+
+/* ---------- solids ---------- */
+function quad(pts,fill){
+  const cs=clipPoly(pts.map(p=>toCam(p[0],p[1],p[2])));
+  if(cs.length<3) return;
+  ctx.fillStyle=fill; ctx.beginPath();
+  ctx.moveTo(sx(cs[0]),sy(cs[0]));
+  for(let i=1;i<cs.length;i++) ctx.lineTo(sx(cs[i]),sy(cs[i]));
+  ctx.closePath(); ctx.fill();
+}
+function box(x0,x1,z0,z1,y0,h,col,topCol){
+  const t=fogT(toCam((x0+x1)/2,0,(z0+z1)/2).Z);
+  const side=mix(col,HAZE,t), dark=mix(mix(col,'#000',0.38),HAZE,t);
+  const top=mix(topCol||mix(col,'#7f929b',0.28),HAZE,t);
+  const y1=y0+h;
+  if(cam.z<z0) quad([[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0]],side);
+  else if(cam.z>z1) quad([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],side);
+  if(cam.x<x0) quad([[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]],dark);
+  else if(cam.x>x1) quad([[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0]],dark);
+  if(cam.y>y1) quad([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],top);
+}
+function drawBuilding(b){
+  const t=fogT(toCam(b.faceX,0,(b.z0+b.z1)/2).Z);
+  box(b.x0,b.x1,b.z0,b.z1,0,b.h,b.col);
+  if(t>0.86) return;
+  // lit windows on the street-facing wall
+  const fx=b.faceX+b.dir*0.03;
+  const rows=Math.min(9,Math.floor(b.h/2.3));
+  const cols=Math.max(2,Math.floor((b.z1-b.z0)/2.3));
+  for(let r=0;r<rows;r++){
+    for(let cI=0;cI<cols;cI++){
+      const lit=hash(b.seed,r*13+cI,29);
+      if(lit>0.42) continue;
+      const y=1.6+r*2.3, z=b.z0+0.7+cI*((b.z1-b.z0-1.2)/Math.max(1,cols-1));
+      const warm = lit<0.28 ? MARK : '#cfd8dd';
+      quad([[fx,y,z],[fx,y,z+0.85],[fx,y+1.05,z+0.85],[fx,y+1.05,z]],
+           mix(warm,HAZE,Math.min(0.85,t+0.15)));
+    }
+  }
+}
+function drawLamp(o){
+  box(o.x-0.06,o.x+0.06,o.z-0.06,o.z+0.06,0.14,4.4,'#31383e');
+  box(o.x-0.06,o.x+0.55,o.z-0.1,o.z+0.1,4.4,0.12,'#31383e');
+  const c=toCam(o.x+0.5,4.34,o.z);
+  if(c.Z>NEAR){
+    const s=F/c.Z, t=fogT(c.Z);
+    ctx.save(); ctx.globalAlpha=0.9*(1-t*0.7);
+    const g=ctx.createRadialGradient(sx(c),sy(c),0,sx(c),sy(c),s*0.55);
+    g.addColorStop(0,'rgba(242,197,60,0.95)'); g.addColorStop(1,'rgba(242,197,60,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx(c),sy(c),s*0.55,0,6.29); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawCar(c){
+  const bodyT=fogT(toCam(c.x,0,c.z).Z);
+  box(c.x-c.w/2,c.x+c.w/2,c.z-c.d/2,c.z+c.d/2,0.06,c.h*0.62,c.col);
+  box(c.x-c.w/2+0.16,c.x+c.w/2-0.16,c.z-c.d/2+0.9,c.z+c.d/2-0.9,c.h*0.62+0.06,c.h*0.42,
+      mix(c.col,'#000',0.3),'#4d5763');
+  // lights on the leading face
+  const lz=c.z+c.dir*(c.d/2+0.02);
+  const front=c.dir===-1;
+  for(const s of [-1,1]){
+    const p=toCam(c.x+s*(c.w/2-0.32), 0.55, lz);
+    if(p.Z<NEAR) continue;
+    const sc=F/p.Z, R=sc*(front?0.5:0.3);
+    ctx.save(); ctx.globalAlpha=(front?0.95:0.7)*(1-bodyT*0.6);
+    const g=ctx.createRadialGradient(sx(p),sy(p),0,sx(p),sy(p),R);
+    g.addColorStop(0,front?'rgba(255,246,214,1)':'rgba(224,60,40,1)');
+    g.addColorStop(1,front?'rgba(255,246,214,0)':'rgba(224,60,40,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx(p),sy(p),R,0,6.29); ctx.fill(); ctx.restore();
+  }
+}
+
+/* ---------- figures: always square to the camera ---------- */
+function figure(wx,wz,phase,moving,o){
+  const c=toCam(wx,0.14,wz);
+  if(c.Z<NEAR) return;
+  const px=sx(c), py=sy(c), s=(F/c.Z)*(o.scale||1), t=fogT(c.Z);
+  if(Math.abs(px-CX)>W*0.9+s) return;
+  const skin=mix(o.skin,HAZE,t*0.9), trim=mix(o.trim,HAZE,t*0.9);
+  const h=1.72*s;
+
+  ctx.save(); ctx.globalAlpha=0.32*(1-t); ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.ellipse(px,py,s*0.32,s*0.13,0,0,6.29); ctx.fill(); ctx.restore();
+
+  const sw=moving?Math.sin(phase):0;
+  const bob=moving?Math.abs(Math.cos(phase))*h*0.022:0;
+  const hipY=py-h*0.48-bob, shldY=py-h*0.80-bob, headY=py-h*0.90-bob;
+  ctx.lineCap='round';
+
+  ctx.strokeStyle=trim; ctx.lineWidth=s*0.105;
+  for(const side of [-1,1]){
+    const p2=side>0?sw:-sw;
+    const footY=py-Math.max(0,p2)*h*0.16, footX=px+side*s*0.085+p2*s*0.03;
+    ctx.beginPath(); ctx.moveTo(px+side*s*0.07,hipY);
+    ctx.quadraticCurveTo(px+side*s*0.085,(hipY+footY)/2,footX,footY); ctx.stroke();
+  }
+  ctx.fillStyle=skin;
+  ctx.beginPath();
+  ctx.moveTo(px-s*0.155,shldY); ctx.lineTo(px+s*0.155,shldY);
+  ctx.lineTo(px+s*0.105,hipY+s*0.02); ctx.lineTo(px-s*0.105,hipY+s*0.02);
+  ctx.closePath(); ctx.fill();
+
+  ctx.strokeStyle=skin; ctx.lineWidth=s*0.078;
+  for(const side of [-1,1]){
+    const p2=side>0?-sw:sw;
+    ctx.beginPath(); ctx.moveTo(px+side*s*0.145,shldY+s*0.02);
+    ctx.quadraticCurveTo(px+side*s*0.20,shldY+h*0.14,
+      px+side*s*0.175+p2*s*0.05, shldY+h*0.24-Math.max(0,p2)*h*0.05);
+    ctx.stroke();
+  }
+  ctx.fillStyle=skin;
+  ctx.beginPath(); ctx.arc(px,headY-s*0.055,s*0.115,0,6.29); ctx.fill();
+  if(o.eyes){
+    ctx.fillStyle=o.eyes;
+    ctx.beginPath(); ctx.arc(px-s*0.045,headY-s*0.065,s*0.022,0,6.29);
+    ctx.arc(px+s*0.045,headY-s*0.065,s*0.022,0,6.29); ctx.fill();
+  }
+}
+
+function marker(now){
+  if(!player.moving||player.dead) return;
+  const c=toCam(player.tx,0.15,player.tz); if(c.Z<NEAR) return;
+  const s=F/c.Z, px=sx(c), py=sy(c), pulse=0.5+0.5*Math.sin(now*0.006);
+  const onRoad = player.tx>ROAD_X0 && player.tx<ROAD_X1;
+  ctx.save();
+  ctx.globalAlpha=0.35+0.35*pulse;
+  ctx.strokeStyle=onRoad?BLOOD:MARK; ctx.lineWidth=Math.max(1,s*0.02);
+  ctx.beginPath(); ctx.ellipse(px,py,s*(0.22+0.10*pulse),s*(0.09+0.04*pulse),0,0,6.29); ctx.stroke();
+  ctx.globalAlpha=0.9; ctx.fillStyle=onRoad?BLOOD:MARK;
+  ctx.beginPath(); ctx.ellipse(px,py,s*0.035,s*0.014,0,0,6.29); ctx.fill();
+  ctx.restore();
+}
+function vignette(){
+  const g=ctx.createRadialGradient(CX,CY*1.05,Math.min(W,H)*0.26,CX,CY,Math.max(W,H)*0.78);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(6,9,14,0.62)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+}
+
+/* ---------- loop ---------- */
+let last=performance.now(), acc=0, frames=0;
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  const props=update(dt);
+
+  street();
+  marker(now);
+
+  const draws=[];
+  for(const o of props){
+    if(o.kind==='bldg') draws.push({d:toCam(o.faceX,0,(o.z0+o.z1)/2).Z, f:()=>drawBuilding(o)});
+    else if(o.kind==='lamp') draws.push({d:toCam(o.x,0,o.z).Z, f:()=>drawLamp(o)});
+    else draws.push({d:toCam(o.x,0,o.z).Z, f:()=>box(o.x-0.35,o.x+0.35,o.z-0.35,o.z+0.35,0.14,1.0,'#2f3a35')});
+  }
+  for(const c of cars) draws.push({d:toCam(c.x,0,c.z).Z, f:()=>drawCar(c)});
+  for(const p of peds) draws.push({d:toCam(p.x,0,p.z).Z,
+    f:()=>figure(p.x,p.z,p.phase,p.spd>0,{skin:p.skin,trim:p.trim,scale:p.scale})});
+  if(!player.dead||deathT>0) draws.push({d:toCam(player.x,0,player.z).Z,
+    f:()=>figure(player.x,player.z,player.phase,player.moving,{skin:BONE,trim:'#b9ac90'})});
+  if(chaser.on) draws.push({d:toCam(chaser.x,0,chaser.z).Z,
+    f:()=>figure(chaser.x,chaser.z,chaser.phase,true,{skin:'#151a20',trim:'#0d1116',eyes:BLOOD,scale:1.12})});
+
+  draws.sort((a,b)=>b.d-a.d);
+  for(const o of draws) if(o.d>NEAR) o.f();
+
+  vignette();
+  if(player.dead){
+    ctx.fillStyle=`rgba(224,85,47,${0.14+0.34*Math.max(0,deathT)})`;
+    ctx.fillRect(0,0,W,H);
+  } else if(player.slow>0){
+    ctx.fillStyle=`rgba(11,14,20,${0.16*player.slow})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  acc+=dt; frames++;
+  if(acc>0.5){
+    readout.textContent=`${player.dead?'hit':(player.slow>0?'blocked':'clear')}\n${Math.round(frames/acc)} fps`;
+    acc=0; frames=0;
+  }
+  requestAnimationFrame(frame);
+}
+reset();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
