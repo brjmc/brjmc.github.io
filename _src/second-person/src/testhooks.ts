@@ -1,11 +1,13 @@
 // window.__sp: hooks for Playwright screenshots and perf runs (?test or ?debug only).
 
 import type { Game, Stage } from './game';
+import type { Renderer } from './render/renderer';
 import { lensPoint } from './sim/bot';
 import { SIM_DT } from './sim/constants';
 
 export interface TestHooks {
   game: Game;
+  renderer: Renderer | null;
   load(level: number, seed: number, stage?: Stage): void;
   /** Hold the pointer toward the lens and step the sim synchronously. */
   walk(seconds: number): void;
@@ -21,9 +23,10 @@ declare global {
   }
 }
 
-export function runTestHooks(game: Game) {
+export function runTestHooks(game: Game, renderer: Renderer | null) {
   const hooks: TestHooks = {
     game,
+    renderer,
     frames: 0,
     load(level, seed, stage = 'play') {
       game.fixedSeed = seed;
@@ -53,6 +56,7 @@ export function runTestHooks(game: Game) {
         }
       }
       w.pointerUp();
+      w.step(SIM_DT);
       return found;
     },
     pause(p) {

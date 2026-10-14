@@ -2,7 +2,9 @@ import './style.css';
 import { Game } from './game';
 import { makeView } from './sim/projection';
 import { Hud } from './ui/hud';
+import { Renderer } from './render/renderer';
 import { GreyboxRenderer } from './render/greybox';
+import { Quality } from './render/quality';
 import { runTestHooks } from './testhooks';
 
 const params = new URLSearchParams(location.search);
@@ -10,19 +12,26 @@ const canvas = document.getElementById('c') as HTMLCanvasElement;
 const startLevel = Number(params.get('level')) || 1;
 
 const game = new Game(startLevel, makeView(innerWidth, innerHeight));
-if (params.has('seed')) game.fixedSeed = Number(params.get('seed')) | 0;
-if (params.has('seed')) game.load(startLevel, 'brief');
+if (params.has('seed')) {
+  game.fixedSeed = Number(params.get('seed')) | 0;
+  game.load(startLevel, 'brief');
+}
 
 const hud = new Hud();
 game.onStage = (s) => hud.showStage(game, s);
 hud.showStage(game, game.stage);
 
-const renderer = new GreyboxRenderer(canvas);
+const grey = params.has('greybox');
+const renderer = grey ? null : new Renderer(canvas);
+const greybox = grey ? new GreyboxRenderer(canvas) : null;
+const forcedTier = params.has('q') ? Math.max(0, Math.min(2, Number(params.get('q')) | 0)) : null;
+const quality = renderer ? new Quality(renderer, forcedTier) : null;
 
 function resize() {
   const v = makeView(innerWidth, innerHeight);
   game.setView(v);
-  renderer.resize(v, Math.min(2, devicePixelRatio || 1));
+  renderer?.resize(v);
+  greybox?.resize(v, Math.min(2, devicePixelRatio || 1));
 }
 addEventListener('resize', resize);
 resize();
@@ -59,12 +68,17 @@ let last = performance.now();
 function frame(now: number) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  const t0 = performance.now();
   game.update(dt);
-  game.events.length = 0;
   hud.update(game);
-  renderer.render(game);
+  if (renderer) {
+    renderer.onEvents(game.events);
+    renderer.render(game, dt);
+  } else greybox!.render(game);
+  game.events.length = 0;
+  quality?.sample(dt, performance.now() - t0, game.stage === 'play');
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-if (params.has('test') || params.has('debug')) runTestHooks(game);
+if (params.has('test') || params.has('debug')) runTestHooks(game, renderer);
