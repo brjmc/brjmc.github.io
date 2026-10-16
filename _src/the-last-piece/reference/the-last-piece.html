@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>THE LAST PIECE — nigiri vs chopsticks</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:#0f0b10;overflow:hidden;
+    font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;color:#f3e2c8;}
+  #wrap{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:8px;}
+  #screen{
+    width:100%;max-width:min(100vw - 16px, calc((100vh - 210px) * 1.6));
+    aspect-ratio:320/200;image-rendering:pixelated;image-rendering:crisp-edges;
+    background:#000;border:2px solid #4a3a26;border-radius:2px;
+    box-shadow:0 0 0 2px #0a0708, 0 12px 40px rgba(255,177,92,.14);touch-action:none;
+  }
+  #pad{width:100%;max-width:520px;display:flex;gap:14px;align-items:center;justify-content:center;}
+  #dpad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,44px);gap:4px;}
+  .btn{appearance:none;border:2px solid #6b5433;background:#241a12;color:#f3e2c8;
+    font:700 13px/1 ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;
+    border-radius:3px;user-select:none;touch-action:none;cursor:pointer;}
+  .btn:active,.btn.on{background:#ffb15c;border-color:#ffd9a8;color:#2a1a00;}
+  #fire{width:96px;height:96px;border-radius:50%;background:#28380f;border-color:#6f9a2c;font-size:12px;}
+  #fire:active,#fire.on{background:#8ec63f;border-color:#c3e585;color:#132000;}
+  .sp{visibility:hidden;}
+  #hint{font-size:11px;letter-spacing:.08em;opacity:.55;text-align:center;max-width:560px;line-height:1.5;}
+  @media (min-width:820px){ #pad{display:none;} }
+  @media (max-width:819px){ #hint{display:none;} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="screen" width="320" height="200"></canvas>
+  <div id="pad">
+    <div id="dpad">
+      <button class="btn sp"></button><button class="btn" data-k="up">▲</button><button class="btn sp"></button>
+      <button class="btn" data-k="left">◀</button><button class="btn sp"></button><button class="btn" data-k="right">▶</button>
+      <button class="btn sp"></button><button class="btn" data-k="down">▼</button><button class="btn sp"></button>
+    </div>
+    <button class="btn" id="fire" data-k="fire">Throw</button>
+  </div>
+  <div id="hint">Arrows / WASD move around the plate &nbsp;·&nbsp; J, SPACE or CLICK throws wasabi<br>M mute &nbsp;·&nbsp; R restart</div>
+</div>
+<script>
+(() => {
+"use strict";
+
+const cv = document.getElementById('screen');
+const ctx = cv.getContext('2d');
+const W = 320, H = 200, M = 16;
+ctx.imageSmoothingEnabled = false;
+
+// ---------- you are the diner: leaning over the board, looking down through your glasses ----------
+const HORIZON = 58;
+const F = 220;
+const CAMY = 192;
+const NEARZ = 510, FARZ = 1265;      // where a piece of sushi may stand
+const BX = 196, BZ0 = 470, BZ1 = 1330; // the plate: smaller than the table it sits on
+const REFS = F / 700;
+const VP = { x0:9, y0:12, x1:311, y1:186 };
+const GAP = 34;                       // half-width of the lane between the chopstick tips
+const REST = { x: W/2, y: 128 };      // where the tips hover between attempts
+
+const P = {
+  room0:'#100a10', room1:'#241318', room2:'#3a231c', lantern:'#ffb15c',
+  table:'#3b2517', tableL:'#5a3a22', tableD:'#1d110c', grain:'#4c2f1c',
+  rice:'#f7f2e6', riceD:'#d5c9b2', nori:'#26332b',
+  salmon:'#f4855a', salmonL:'#ffb193', salmonD:'#c25a38',
+  wasabi:'#8ec63f', wasabiD:'#537f1c', wasabiL:'#c8e88a',
+  stick:'#c99a5e', stickL:'#ecc79a', stickD:'#8a6636', tip:'#241b18',
+  frame:'#1c1920', frameD:'#0c0a0f', frameL:'#5b5462',
+  amber:'#ffd23f', bone:'#f3e2c8', tear:'#cfe7ff',
+  plate:'#e4dcc9', plateS:'#fbf7ee', plateD:'#c3b8a2', plateE:'#a2957e',
+  soy:'#7d4a22', soyL:'#a9743d', gari:'#f0bfc8', gariD:'#c98d9c',
+  tea:'#93b562', teaD:'#5f7c3c', porc:'#eee7d8', porcD:'#b9ae99'
+};
+
+// ---------- audio ----------
+let actx=null, muted=false;
+function blip(freq,dur,type='square',vol=.06,slide=0){
+  if (muted) return;
+  try{
+    if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,actx.currentTime);
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(35,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+dur);
+    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+
+// ---------- input ----------
+const keys={up:false,down:false,left:false,right:false,fire:false};
+let firePressed=false;
+const keymap={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',
+  ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',
+  KeyJ:'fire',KeyK:'fire',Space:'fire',Enter:'fire'};
+addEventListener('keydown',e=>{
+  const k=keymap[e.code];
+  if(k){ if(!keys[k]&&k==='fire') firePressed=true; keys[k]=true; e.preventDefault();
+    if(G.mode!=='play'&&G.mode!=='finale'&&k==='fire') reset(); }
+  if(e.code==='KeyR') reset();
+  if(e.code==='KeyM') muted=!muted;
+});
+addEventListener('keyup',e=>{const k=keymap[e.code]; if(k) keys[k]=false;});
+document.querySelectorAll('#pad .btn[data-k]').forEach(b=>{
+  const k=b.dataset.k;
+  const on=ev=>{ev.preventDefault(); b.classList.add('on');
+    if(!keys[k]&&k==='fire') firePressed=true; keys[k]=true;
+    if(G.mode!=='play'&&G.mode!=='finale'&&k==='fire') reset();};
+  const off=ev=>{ev.preventDefault(); b.classList.remove('on'); keys[k]=false;};
+  b.addEventListener('touchstart',on,{passive:false}); b.addEventListener('touchend',off,{passive:false});
+  b.addEventListener('touchcancel',off,{passive:false});
+  b.addEventListener('mousedown',on); b.addEventListener('mouseup',off); b.addEventListener('mouseleave',off);
+});
+cv.addEventListener('mousedown',e=>{e.preventDefault();
+  if(G.mode==='play') firePressed=true; else if(G.mode!=='finale') reset();});
+cv.addEventListener('touchstart',e=>{e.preventDefault();
+  if(G.mode!=='play'&&G.mode!=='finale') reset();},{passive:false});
+
+// ---------- state ----------
+const G={};
+const MAXHP=3;
+function reset(){
+  Object.assign(G,{
+    mode:'play', t:0, px:0, pz:800, pvx:0, pvz:0, face:1,
+    hp:5, hurt:0, squash:0, carry:false, throwAnim:0, hits:0,
+    blobs:[], drops:[], flying:[], marks:[], sparks:[], splats:[], tears:[],
+    yaw:0, yawV:0, breath:0, lurch:0, shake:0, shakeX:0, shakeY:0,
+    tipX:REST.x, tipY:REST.y, tipSep:38, tipZ:700, tipWX:0, tipWZ:700, close:0,
+    holding:false, blink:0, blinkT:4+Math.random()*4, sting:0,
+    phase:'idle', stateT:1.4, burst:0, marksN:2, lobT:null,
+    msg:'', msgT:0, finaleT:0,
+    eatT:0, eat:null, panic:0, tipThick:1
+  });
+  firePressed=false;
+}
+
+const sAt=z=>F/z;
+const feetAt=z=>HORIZON+CAMY*sAt(z);
+const rawSX=(x,z)=>W/2+x*sAt(z);
+const sxAt=(x,z)=>rawSX(x,z)+G.yaw;
+const playerSX=()=>sxAt(G.px,G.pz);
+const playerFY=()=>feetAt(G.pz);
+const playerSc=()=>sAt(G.pz)/REFS;
+const topness=z=>Math.max(0,Math.min(1,(Math.atan2(CAMY,z)-0.15)/0.35));
+const diff=()=>Math.min(2,G.hits);
+const sticksOpen=()=>G.close<0.4 && !G.holding;
+
+function say(t){G.msg=t;G.msgT=1.7;}
+function spark(x,y,n,col,spread=170){
+  for(let i=0;i<n;i++) G.sparks.push({x,y,vx:(Math.random()-.5)*spread,vy:(Math.random()-.5)*spread-40,
+    life:.3+Math.random()*.35,t:0,col});
+}
+const lerp=(a,b,k)=>a+(b-a)*k;
+const ease=k=>k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+
+// ---------- wasabi on the lens ----------
+function makeSplat(cx,cy,mag){
+  const pts=[], n=11;
+  for(let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2;
+    const r=(9+Math.random()*9)*mag;
+    pts.push({a,r});
+  }
+  const drips=[];
+  for(let i=0;i<2+(Math.random()*3|0);i++)
+    drips.push({dx:(Math.random()-.5)*16*mag, w:1.5+Math.random()*2.5, len:10+Math.random()*22});
+  const flecks=[];
+  for(let i=0;i<9;i++) flecks.push({x:cx+(Math.random()-.5)*70*mag, y:cy+(Math.random()-.5)*54*mag, s:1+(Math.random()*2|0)});
+  G.splats.push({cx,cy,pts,drips,flecks,t:0,mag});
+  for(let i=0;i<3;i++) G.tears.push({x:cx+(Math.random()-.5)*40, t:0, life:6+Math.random()*4, wob:Math.random()*6});
+  for(let i=0;i<16;i++) G.sparks.push({x:cx,y:cy,vx:(Math.random()-.5)*180,vy:-30-Math.random()*70,
+    life:.5+Math.random()*.4,t:0,col:P.wasabiL});
+}
+
+// ---------- update ----------
+function update(dt){
+  G.t+=dt;
+  if(G.shake>0) G.shake=Math.max(0,G.shake-dt*3);
+  G.shakeX=G.shake>0?(Math.random()-.5)*G.shake*5:0;
+  G.shakeY=G.shake>0?(Math.random()-.5)*G.shake*4:0;
+  if(G.msgT>0) G.msgT-=dt;
+  if(G.lurch>0) G.lurch-=dt*2;
+  if(G.sting>0) G.sting-=dt;
+  if(G.squash>0) G.squash-=dt*3;
+  for(const s of G.sparks){s.t+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.vy+=240*dt;}
+  G.sparks=G.sparks.filter(s=>s.t<s.life);
+  for(const s of G.splats) s.t+=dt;
+  for(const t of G.tears) t.t+=dt;
+  G.tears=G.tears.filter(t=>t.t<t.life);
+
+  // breathing, and the slow tremor of a hand held over a plate
+  G.breath+=dt*1.5;
+
+  // blinking. the eye waters more once wasabi has landed in it
+  G.blinkT-=dt*(1+G.hits*0.8);
+  if(G.blinkT<=0 && G.mode==='play'){ G.blinkT=4.5+Math.random()*5; G.blink=0.001; }
+  if(G.blink>0 && G.mode==='play'){
+    G.blink+=dt*7.5;
+    if(G.blink>=2) G.blink=0;
+  }
+
+  if(G.mode==='eaten'){ runEat(dt); return; }
+
+  if(G.mode==='finale'){
+    G.finaleT+=dt;
+    G.blink=Math.min(1.999, 0.4+G.finaleT*2.2);
+    if(Math.random()<.4) spark(60+Math.random()*200, 40+Math.random()*90, 1, P.wasabiL, 120);
+    if(G.finaleT>1.25) G.mode='win';
+    return;
+  }
+  if(G.mode!=='play') return;
+
+  // --- the piece of sushi shuffles around the board ---
+  const acc=1400,maxv=200,accz=900,maxvz=210;
+  const dx=(keys.right?1:0)-(keys.left?1:0);
+  const dz=(keys.up?1:0)-(keys.down?1:0);
+  if(dx){G.pvx+=dx*acc*dt;G.face=dx;} else G.pvx-=G.pvx*Math.min(1,dt*13);
+  if(dz) G.pvz+=dz*accz*dt; else G.pvz-=G.pvz*Math.min(1,dt*13);
+  G.pvx=Math.max(-maxv,Math.min(maxv,G.pvx));
+  G.pvz=Math.max(-maxvz,Math.min(maxvz,G.pvz));
+  G.px+=G.pvx*dt; G.pz+=G.pvz*dt;
+  if(G.pz<NEARZ){G.pz=NEARZ;G.pvz=0;} if(G.pz>FARZ){G.pz=FARZ;G.pvz=0;}
+  const lim=BX-26;
+  if(G.px<-lim){G.px=-lim;G.pvx=0;} if(G.px>lim){G.px=lim;G.pvx=0;}
+  if(G.hurt>0) G.hurt-=dt;
+  if(G.throwAnim>0) G.throwAnim-=dt;
+
+  // --- the diner keeps leaning to keep you in the middle of the lens, and keeps overshooting ---
+  const want=-(rawSX(G.px,G.pz)-W/2)+Math.sin(G.t*0.7)*30;
+  G.yawV+=(want-G.yaw)*9*dt;
+  G.yawV*=Math.exp(-2.3*dt);
+  G.yaw+=G.yawV*dt;
+  const eff=rawSX(G.px,G.pz)+G.yaw;
+  if(eff<30) G.yaw+=(30-eff);
+  if(eff>290) G.yaw-=(eff-290);
+  G.yaw=Math.max(-130,Math.min(130,G.yaw));
+
+  // --- wasabi sitting on the board ---
+  for(const b of G.blobs){
+    b.life-=dt;
+    if(b.life<=0){b.dead=true; spark(sxAt(b.x,b.z),feetAt(b.z)-3,5,P.wasabiD); continue;}
+    if(!G.carry && Math.abs(b.x-G.px)<42 && Math.abs(b.z-G.pz)<70){
+      b.dead=true; G.carry=true; blip(540,.07,'sine',.05,160);
+    }
+  }
+  G.blobs=G.blobs.filter(b=>!b.dead);
+
+  // --- throw it up the lane, between the tips ---
+  if(firePressed && G.carry){
+    G.carry=false; G.throwAnim=.22;
+    G.flying.push({sx:playerSX(),y0:playerFY()-20*playerSc(),z:G.pz,z0:G.pz,spin:Math.random()*6,
+      open:sticksOpen()});   // what the lane looked like when you let go is what counts
+    blip(300,.1,'sine',.05,-120);
+  }
+  firePressed=false;
+
+  for(const r of G.flying){
+    r.z-=1060*dt; r.spin+=dt*7;
+    if(r.z<=70){
+      r.dead=true;
+      const inLane=Math.abs(r.sx-W/2)<GAP;
+      if(inLane && r.open){
+        G.hits++; G.lurch=1; G.shake=2.2; G.sting=2.6;
+        makeSplat(Math.max(48,Math.min(272,r.sx)), 34+Math.random()*46, 1+G.hits*.35);
+        blip(150,.3,'sawtooth',.07,-90); blip(900,.14,'sine',.05,-700);
+        if(G.hits>=MAXHP){ G.mode='finale'; G.finaleT=0; G.shake=3; blip(80,1.1,'sawtooth',.09,-40); }
+        else say(G.hits===1?'HIS EYES ARE WATERING':'HE CAN BARELY SEE');
+      } else if(inLane){
+        // clipped a chopstick on the way through
+        spark(G.tipX,G.tipY,10,P.wasabiD,220); G.shake=.5; blip(420,.06,'square',.045,-120);
+      } else {
+        spark(r.sx,REST.y,7,P.wasabiD,200); blip(240,.07,'triangle',.035);
+      }
+    }
+  }
+  G.flying=G.flying.filter(r=>!r.dead);
+
+  // --- the attempt cycle: hover, line up, stab, then fumble the wasabi ---
+  G.stateT-=dt;
+  const aimTime=[1.35,1.15,.95][diff()];
+  const slot=[.42,.38,.34][diff()];
+  if(G.phase==='idle'){
+    G.tipWX=lerp(G.tipWX,G.px*0.25,Math.min(1,dt*2));
+    G.tipWZ=lerp(G.tipWZ,700,Math.min(1,dt*2));
+    setTipsFromWorld(G.tipWX,G.tipWZ,60,0);
+    if(G.stateT<=0){
+      G.phase='aim'; G.stateT=aimTime; G.burst=0; G.marks=[];
+      G.marksN=[2,3,4][diff()];
+      for(let i=0;i<G.marksN;i++) G.marks.push({
+        x:G.px+(Math.random()-.5)*230, z:NEARZ+Math.random()*(FARZ-NEARZ),
+        fired:false, track:.55+diff()*.4});
+      blip(760,.07,'sine',.035,-160);
+    }
+  } else if(G.phase==='aim'){
+    for(const m of G.marks){
+      m.x+=(G.px-m.x)*Math.min(1,dt*m.track);
+      m.z+=(G.pz-m.z)*Math.min(1,dt*m.track);
+    }
+    const m0=G.marks[0];
+    if(m0){ G.tipWX=lerp(G.tipWX,m0.x,Math.min(1,dt*3)); G.tipWZ=lerp(G.tipWZ,m0.z,Math.min(1,dt*3)); }
+    setTipsFromWorld(G.tipWX,G.tipWZ,52,.12);
+    if(G.stateT<=0){ G.phase='stab'; G.stateT=slot*G.marksN+.15; G.burst=0; }
+  } else if(G.phase==='stab'){
+    G.burst+=dt;
+    const i=Math.min(G.marks.length-1,Math.floor(G.burst/slot));
+    const m=G.marks[i];
+    const k=Math.min(1,(G.burst-i*slot)/slot);
+    if(m){
+      let hover, closeAmt;
+      if(k<.5){ const e=ease(k/.5); hover=lerp(60,2,e); closeAmt=e*.9; }
+      else if(k<.62){ hover=2; closeAmt=1; }
+      else { const e=ease((k-.62)/.38); hover=lerp(2,46,e); closeAmt=1-e*.8; }
+      G.tipWX=lerp(G.tipWX,m.x,Math.min(1,dt*14));
+      G.tipWZ=lerp(G.tipWZ,m.z,Math.min(1,dt*14));
+      setTipsFromWorld(G.tipWX,G.tipWZ,hover,closeAmt);
+      if(!m.fired && k>=.5){
+        m.fired=true;
+        G.shake=.8; spark(sxAt(m.x,m.z),feetAt(m.z)-2,7,P.plateS,150);
+        blip(210,.07,'square',.05,-80); blip(140,.09,'triangle',.04,-40);
+        if(Math.abs(m.x-G.px)<28 && Math.abs(m.z-G.pz)<58) hitPlayer();
+      }
+    }
+    if(G.stateT<=0){
+      G.phase='fumble'; G.stateT=.7; G.marks=[]; G.holding=true;
+      G.lobT={x:Math.max(-155,Math.min(155,G.px+(Math.random()-.5)*130)),
+              z:NEARZ+70+Math.random()*(FARZ-NEARZ-140)};
+      blip(600,.09,'sine',.035,120);
+    }
+  } else if(G.phase==='fumble'){
+    G.tipWX=lerp(G.tipWX,G.lobT.x,Math.min(1,dt*4));
+    G.tipWZ=lerp(G.tipWZ,G.lobT.z,Math.min(1,dt*4));
+    setTipsFromWorld(G.tipWX,G.tipWZ,74,.85);
+    if(G.stateT<=0){
+      G.holding=false;
+      G.drops.push({tx:G.lobT.x,tz:G.lobT.z,fx:G.tipX,fy:G.tipY,t:0,dur:.55});
+      blip(330,.14,'sine',.045,-80);
+      G.phase='idle'; G.stateT=[1.5,1.25,1.05][diff()];
+    }
+  }
+
+  // you can see it coming
+  G.panic = (G.phase==='stab' && G.close>.3 && Math.abs(G.tipX-playerSX())<44)
+    ? 1 : Math.max(0, G.panic-dt*3);
+
+  for(const l of G.drops){
+    l.t+=dt/l.dur;
+    if(l.t>=1){ l.dead=true; G.blobs.push({x:l.tx,z:l.tz,life:11});
+      spark(sxAt(l.tx,l.tz),feetAt(l.tz),6,P.wasabiD,110); blip(180,.1,'sine',.04,-50); }
+  }
+  G.drops=G.drops.filter(l=>!l.dead);
+}
+
+// place the two tips from a world point on the board, a hover height, and how shut they are
+function setTipsFromWorld(wx,wz,hover,closeAmt){
+  const s=sAt(wz);
+  G.tipZ=wz; G.close=closeAmt;
+  G.tipX=sxAt(wx,wz);
+  G.tipY=feetAt(wz)-hover*s;
+  G.tipSep=lerp(80,5,closeAmt)*Math.max(.55,s/sAt(700));
+}
+
+function hitPlayer(){
+  if(G.hurt>0) return;
+  G.hp--; G.squash=1; G.shake=1.2;
+  if(G.carry){ G.carry=false; G.blobs.push({x:G.px+(G.px<0?40:-40),z:G.pz,life:9}); }
+  spark(playerSX(),playerFY()-14,12,P.rice);
+  blip(150,.26,'square',.07,-90);
+  if(G.hp<=0){
+    // this one does not let go
+    G.mode='eaten'; G.eatT=0; G.panic=1; G.marks=[]; G.holding=true;
+    G.eat={ x0:playerSX(), y0:playerFY(), sc0:playerSc(), tp0:topness(G.pz), tp:topness(G.pz),
+            x:playerSX(), y:playerFY(), sc:playerSc(), tilt:0 };
+    blip(95,.3,'square',.07,-40);
+  } else {
+    G.hurt=1.2; G.pvx=(G.px<0?1:-1)*140;
+  }
+}
+
+// the last few seconds of a piece of sushi's life
+function runEat(dt){
+  G.eatT+=dt;
+  const t=G.eatT, e=G.eat;
+  if(!e) return;
+  if(G.blink>0 && t<2.05){ G.blink+=dt*7.5; if(G.blink>=2) G.blink=0; }
+  if(t<.4){                                   // the tips close and take hold
+    const k=ease(t/.4);
+    G.close=k; G.squash=.35*k;
+    e.x=e.x0; e.y=e.y0; e.sc=e.sc0; e.tilt=Math.sin(t*30)*.05*k;
+    G.tipX=e.x0; G.tipY=e.y0-13*e.sc0; G.tipSep=lerp(52,13,k)*Math.max(.7,e.sc0);
+    G.tipThick=1.7;
+  } else if(t<1.15){                          // and lift you clear of the plate
+    const k=ease((t-.4)/.75);
+    G.close=1; G.squash=.35;
+    e.sc=lerp(e.sc0,e.sc0*1.35,k);
+    e.x=lerp(e.x0, e.x0+(W/2-e.x0)*.55, k);
+    e.y=lerp(e.y0, 104, k);
+    e.tilt=Math.sin(t*13)*.16*(1-k*.35);
+    G.tipX=e.x; G.tipY=e.y-13*e.sc; G.tipSep=13*Math.max(.7,e.sc);
+    G.tipThick=lerp(1.7,2.4,k);
+    if(t-dt<.4) blip(300,.5,'sine',.045,260);
+  } else if(t<2.05){                          // then in, toward the mouth
+    const k=ease((t-1.15)/.9);
+    e.sc=lerp(e.sc0*1.35, 5.6, k);
+    e.x=lerp(e.x0+(W/2-e.x0)*.55, W/2, k);
+    e.y=lerp(104, 176, k);
+    e.tp=lerp(e.tp0, .12, k);
+    e.tilt=Math.sin(t*9)*.1*(1-k);
+    G.tipX=e.x; G.tipY=e.y-13*e.sc; G.tipSep=lerp(13,86,k);
+    G.tipThick=lerp(2.4,10,k);
+    G.shake=Math.max(G.shake,.25*k);
+    if(t-dt<1.15) blip(180,.85,'sawtooth',.05,220);
+  } else {                                    // itadakimasu
+    if(t-dt<2.05){ blip(70,.5,'sawtooth',.1,-40); blip(150,.3,'square',.06,-110); G.shake=2.5; }
+    G.blink=Math.min(1, (t-2.05)*5);
+    e.sc=5.6; e.x=W/2; e.y=176+ (t-2.05)*40;
+    G.tipSep=86; G.tipThick=10; G.tipX=e.x; G.tipY=e.y-13*e.sc;
+    if(t>2.6) G.mode='lose';
+  }
+}
+
+// ---------- helpers ----------
+function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h)));}
+function text(s,x,y,c,align='left',size=8){
+  ctx.font='bold '+size+'px ui-monospace, monospace'; ctx.textAlign=align; ctx.textBaseline='top';
+  ctx.fillStyle=c; ctx.fillText(s,x,y);
+}
+function poly(pts,c){ ctx.fillStyle=c; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.fill(); }
+
+// ---------- the room ----------
+function drawRoom(){
+  const g=ctx.createLinearGradient(0,-M,0,HORIZON+2);
+  g.addColorStop(0,P.room0); g.addColorStop(.55,P.room1); g.addColorStop(1,P.room2);
+  ctx.fillStyle=g; ctx.fillRect(-M,-M,W+M*2,HORIZON+2+M);
+  const px=G.yaw*0.3;
+  // paper lanterns, well out of focus
+  for(const [x,y,r] of [[48,20,15],[152,12,11],[262,24,17],[210,30,8]]){
+    const rg=ctx.createRadialGradient(x+px,y,1,x+px,y,r*2.2);
+    rg.addColorStop(0,'rgba(255,177,92,.55)'); rg.addColorStop(.45,'rgba(255,140,60,.18)'); rg.addColorStop(1,'rgba(255,120,40,0)');
+    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(x+px,y,r*2.2,0,7); ctx.fill();
+    ctx.fillStyle='rgba(255,196,130,.5)'; ctx.beginPath(); ctx.ellipse(x+px,y,r*.5,r*.42,0,0,7); ctx.fill();
+  }
+  // the counter behind, and a couple of blurred shapes on it
+  ctx.fillStyle='rgba(12,6,8,.55)'; ctx.fillRect(-M,40,W+M*2,HORIZON-40+2);
+  for(const [x,w,h] of [[70,10,12],[96,7,9],[188,12,10],[240,8,13]])
+    rect(x+px,40-h+2,w,h,'rgba(30,18,16,.85)');
+}
+
+function drawTable(){
+  rect(-M,HORIZON,W+M*2,H-HORIZON+M,P.table);
+  // plank seams running away from you
+  ctx.globalAlpha=.5; ctx.strokeStyle=P.tableD; ctx.lineWidth=1;
+  for(const x of [-430,430,-880,880]){
+    ctx.beginPath();
+    ctx.moveTo(sxAt(x,3000),feetAt(3000)); ctx.lineTo(sxAt(x,300),feetAt(300));
+    ctx.stroke();
+  }
+  ctx.globalAlpha=.22; ctx.strokeStyle=P.grain;
+  for(const x of [-620,180,-180,660]){
+    ctx.beginPath();
+    ctx.moveTo(sxAt(x,3000),feetAt(3000)); ctx.lineTo(sxAt(x,300),feetAt(300));
+    ctx.stroke();
+  }
+  // a warm pool of lamplight over the middle of the table
+  const g=ctx.createRadialGradient(W/2+G.yaw*.4,feetAt(900),20,W/2+G.yaw*.4,feetAt(900),190);
+  g.addColorStop(0,'rgba(255,170,90,.14)'); g.addColorStop(1,'rgba(255,150,70,0)');
+  ctx.globalAlpha=1; ctx.fillStyle=g; ctx.fillRect(-M,HORIZON,W+M*2,H-HORIZON+M);
+}
+
+// what was cleared off this plate before you: faint, flat, nothing crater-shaped
+const LEFTOVERS = [
+  {k:'ghost', x:-104, z: 640, r:30},
+  {k:'ghost', x:  46, z: 980, r:26},
+  {k:'ghost', x: 112, z: 740, r:28},
+  {k:'soy',   x:-132, z:1060},
+  {k:'soy',   x:  84, z: 590},
+  {k:'gari',  x: 128, z:1050},
+  {k:'gari',  x:-146, z: 830},
+  {k:'grain', x: -54, z: 880},
+  {k:'grain', x: -42, z: 905},
+  {k:'grain', x: 108, z: 950},
+  {k:'grain', x:-138, z: 700},
+  {k:'seed',  x:  62, z:1130},
+  {k:'seed',  x: -22, z: 660},
+  {k:'seed',  x:  96, z: 820}
+];
+
+// blend a colour toward the gloom, so far props sit back instead of glowing
+function shade(c,k){
+  const n=parseInt(c.slice(1),16);
+  const r=n>>16, g=(n>>8)&255, b=n&255;
+  return 'rgb('+Math.round(r+(34-r)*k)+','+Math.round(g+(22-g)*k)+','+Math.round(b+(16-b)*k)+')';
+}
+const dim=z=>Math.max(0,Math.min(.55,(z-800)/2200));
+
+// a rounded rectangular plate, in world coordinates, projected
+function plateRing(inset,zin){
+  const x=BX-inset, z0=BZ0+zin, z1=BZ1-zin;
+  const r=Math.min(58,x*.45,(z1-z0)*.2);
+  const cs=[[x-r,z0+r],[x-r,z1-r],[-x+r,z1-r],[-x+r,z0+r]];
+  const pts=[];
+  for(let c=0;c<4;c++){
+    const [cx,cz]=cs[c];
+    for(let i=0;i<=4;i++){
+      const a=-Math.PI/2+c*Math.PI/2+(i/4)*(Math.PI/2);
+      const wx=cx+r*Math.cos(a), wz=cz+r*Math.sin(a);
+      pts.push([sxAt(wx,wz),feetAt(wz)]);
+    }
+  }
+  return pts;
+}
+
+function drawPlate(){
+  const outer=plateRing(0,0), nearY=feetAt(BZ0), farY=feetAt(BZ1);
+  // contact shadow
+  ctx.globalAlpha=.5;
+  poly(outer.map(p=>[p[0],p[1]+3]),P.tableD);
+  ctx.globalAlpha=.25;
+  poly(outer.map(p=>[p[0]+2,p[1]+6]),P.tableD);
+  ctx.globalAlpha=1;
+  // porcelain is thin: a 3px lip, not a slab
+  poly(outer.map(p=>[p[0],p[1]+3]),P.plateE);
+  // the rim, lit warm at the near edge and cooling toward the back
+  const g=ctx.createLinearGradient(0,farY,0,nearY+4);
+  g.addColorStop(0,shade(P.plate,.3)); g.addColorStop(1,P.plateS);
+  ctx.fillStyle=g;
+  ctx.beginPath();
+  outer.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  ctx.closePath(); ctx.fill();
+  // the well, sunk inside the rim
+  const inner=plateRing(22,58);
+  const g2=ctx.createLinearGradient(0,farY,0,nearY);
+  g2.addColorStop(0,shade(P.plateS,.22)); g2.addColorStop(1,'#ffffff');
+  ctx.fillStyle=g2;
+  ctx.beginPath();
+  inner.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  ctx.closePath(); ctx.fill();
+  // the step down into the well
+  ctx.globalAlpha=.4; ctx.strokeStyle=P.plateD; ctx.lineWidth=1;
+  ctx.beginPath();
+  inner.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  ctx.closePath(); ctx.stroke();
+  // glaze highlight along the near lip
+  ctx.globalAlpha=.75; ctx.strokeStyle='#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(sxAt(-BX+58,BZ0),nearY+.5); ctx.lineTo(sxAt(BX-58,BZ0),nearY+.5); ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // the remains of the meal
+  for(const o of LEFTOVERS){
+    const s=sAt(o.z)/REFS, x=sxAt(o.x,o.z), y=feetAt(o.z);
+    if(o.k==='ghost'){                        // an oil ring where a piece used to sit
+      ctx.globalAlpha=.13; ctx.strokeStyle=P.plateD; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.ellipse(x,y,o.r*s*.42,o.r*s*.15,0,0,7); ctx.stroke();
+      ctx.globalAlpha=.07; ctx.fillStyle=P.plateD;
+      ctx.beginPath(); ctx.ellipse(x,y,o.r*s*.4,o.r*s*.14,0,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    } else if(o.k==='soy'){                   // a dried splash
+      ctx.globalAlpha=.3; ctx.fillStyle=P.soy;
+      ctx.beginPath(); ctx.ellipse(x,y,6*s,1.8*s,.15,0,7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x+6*s,y+.6*s,2*s,.9*s,0,0,7); ctx.fill();
+      ctx.globalAlpha=.18;
+      ctx.beginPath(); ctx.ellipse(x-7*s,y-.6*s,1.4*s,.7*s,0,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    } else if(o.k==='gari'){                  // a ribbon of ginger nobody ate
+      ctx.fillStyle=P.gari;
+      ctx.beginPath(); ctx.ellipse(x,y-1.6*s,6*s,2.4*s,.28,0,7); ctx.fill();
+      ctx.globalAlpha=.7; ctx.fillStyle=P.gariD;
+      ctx.beginPath(); ctx.ellipse(x+1.6*s,y-.8*s,3.4*s,1.2*s,.28,0,7); ctx.fill();
+      ctx.globalAlpha=.3; ctx.fillStyle=P.plateD;
+      ctx.beginPath(); ctx.ellipse(x,y,6*s,1.3*s,0,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    } else if(o.k==='grain'){                 // stray rice
+      ctx.fillStyle=P.rice;
+      ctx.beginPath(); ctx.ellipse(x,y-1*s,2*s,1.3*s,.5,0,7); ctx.fill();
+      ctx.globalAlpha=.28; ctx.fillStyle=P.plateD;
+      ctx.beginPath(); ctx.ellipse(x,y,2.4*s,.8*s,0,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    } else {                                  // a sesame seed
+      ctx.globalAlpha=.7; ctx.fillStyle=P.plateD;
+      ctx.beginPath(); ctx.ellipse(x,y-1,1.3*s,.8*s,.4,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    }
+  }
+
+  // the diner leaning in over the near half
+  const lean=Math.sin(G.breath)*3;
+  const sh=ctx.createLinearGradient(0,nearY-46,0,nearY+4);
+  sh.addColorStop(0,'rgba(24,12,8,0)'); sh.addColorStop(1,'rgba(24,12,8,.34)');
+  ctx.fillStyle=sh;
+  ctx.beginPath();
+  ctx.moveTo(sxAt(-BX,BZ0)-8,nearY+4); ctx.lineTo(sxAt(BX,BZ0)+8,nearY+4);
+  ctx.lineTo(sxAt(BX,BZ0)-24+lean,nearY-42); ctx.lineTo(sxAt(-BX,BZ0)+28+lean,nearY-42);
+  ctx.closePath(); ctx.fill();
+}
+
+// the rest of the table, an hour and a half into dinner
+function drawProps(){
+  const cup=[-300,780], soy=[285,700], stack=[-60,1560], flask=[255,1420], nap=[-330,570];
+  const contact=(x,y,rx,ry,a)=>{ ctx.globalAlpha=a; ctx.fillStyle='#150b07';
+    ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,7); ctx.fill(); ctx.globalAlpha=1; };
+
+  // stacked empty plates: the evening, in a pile
+  {
+    const z=stack[1], s=sAt(z)/REFS, x=sxAt(stack[0],z), y=feetAt(z), k=dim(z);
+    contact(x,y+1,34*s,6*s,.45);
+    for(let i=0;i<3;i++){
+      const yy=y-i*3.2*s;
+      ctx.fillStyle=shade(P.porcD,k);
+      ctx.beginPath(); ctx.ellipse(x+(i%2?1:-1)*1.5*s,yy,32*s,6.4*s,0,0,7); ctx.fill();
+      ctx.fillStyle=shade(P.porc,k);
+      ctx.beginPath(); ctx.ellipse(x+(i%2?1:-1)*1.5*s,yy-1.6*s,32*s,6*s,0,0,7); ctx.fill();
+    }
+    ctx.globalAlpha=.35; ctx.fillStyle=shade(P.soy,k);
+    ctx.beginPath(); ctx.ellipse(x-6*s,y-10*s,11*s,2.2*s,.1,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // tokkuri, empty for a while now
+  {
+    const z=flask[1], s=sAt(z)/REFS, x=sxAt(flask[0],z), y=feetAt(z), k=dim(z);
+    contact(x,y,12*s,3.4*s,.4);
+    poly([[x-9*s,y-1*s],[x+9*s,y-1*s],[x+7*s,y-17*s],[x+3.4*s,y-22*s],
+          [x+3.4*s,y-29*s],[x-3.4*s,y-29*s],[x-3.4*s,y-22*s],[x-7*s,y-17*s]],shade(P.porc,k));
+    poly([[x-9*s,y-1*s],[x-5.5*s,y-1*s],[x-4*s,y-17*s],[x-7*s,y-17*s]],shade(P.plateS,k*.6));
+    ctx.fillStyle=shade(P.porcD,k);
+    ctx.beginPath(); ctx.ellipse(x,y-29*s,3.4*s,1.2*s,0,0,7); ctx.fill();
+  }
+  // teacup, still warm
+  {
+    const z=cup[1], s=sAt(z)/REFS, x=sxAt(cup[0],z), y=feetAt(z), k=dim(z);
+    contact(x,y,15*s,4.4*s,.5);
+    poly([[x-12*s,y-1*s],[x+12*s,y-1*s],[x+10*s,y-19*s],[x-10*s,y-19*s]],shade(P.porc,k));
+    poly([[x-12*s,y-1*s],[x-8*s,y-1*s],[x-7*s,y-19*s],[x-10*s,y-19*s]],P.plateS);
+    ctx.fillStyle=shade(P.porcD,k);
+    ctx.beginPath(); ctx.ellipse(x,y-19*s,10*s,3.6*s,0,0,7); ctx.fill();
+    ctx.fillStyle=P.tea;
+    ctx.beginPath(); ctx.ellipse(x,y-18.6*s,8*s,2.8*s,0,0,7); ctx.fill();
+    ctx.globalAlpha=.6; ctx.fillStyle=P.teaD;
+    ctx.beginPath(); ctx.ellipse(x+2*s,y-18*s,3.6*s,1.2*s,0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // soy dish, a puddle left in the bottom
+  {
+    const z=soy[1], s=sAt(z)/REFS, x=sxAt(soy[0],z), y=feetAt(z), k=dim(z);
+    contact(x,y+1,17*s,5*s,.5);
+    ctx.fillStyle=shade(P.porcD,k);
+    ctx.beginPath(); ctx.ellipse(x,y-1*s,16*s,5.6*s,0,0,7); ctx.fill();
+    ctx.fillStyle=shade(P.porc,k);
+    ctx.beginPath(); ctx.ellipse(x,y-2.6*s,16*s,5.4*s,0,0,7); ctx.fill();
+    ctx.fillStyle=shade('#f6f2e8',k);
+    ctx.beginPath(); ctx.ellipse(x,y-3*s,12.5*s,4*s,0,0,7); ctx.fill();
+    ctx.fillStyle=P.soy;
+    ctx.beginPath(); ctx.ellipse(x,y-2.6*s,9*s,2.8*s,0,0,7); ctx.fill();
+    ctx.globalAlpha=.45; ctx.fillStyle=P.soyL;
+    ctx.beginPath(); ctx.ellipse(x-3*s,y-3.4*s,3*s,1*s,0,0,7); ctx.fill();
+    ctx.globalAlpha=.8; ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.ellipse(x-7*s,y-1.4*s,4*s,1*s,-.2,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // a napkin, balled up and dropped
+  {
+    const z=nap[1], s=sAt(z)/REFS, x=sxAt(nap[0],z), y=feetAt(z);
+    contact(x,y+1,15*s,4*s,.45);
+    for(const [ox,oy,r] of [[-5,-4,7],[3,-6,8],[6,-2,6],[-2,-1,8]]){
+      ctx.fillStyle=P.plateS;
+      ctx.beginPath(); ctx.ellipse(x+ox*s,y+oy*s,r*s,r*s*.8,0,0,7); ctx.fill();
+    }
+    ctx.globalAlpha=.3; ctx.fillStyle=P.plateD;
+    ctx.beginPath(); ctx.ellipse(x+4*s,y-2*s,7*s,4*s,.3,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x-6*s,y-1*s,4*s,3*s,-.2,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  return cup;
+}
+
+function drawSteam(){
+  ctx.globalAlpha=.075; ctx.strokeStyle='#ffffff'; ctx.lineWidth=1;
+  for(const [wx,wz,ph,h] of [[-300,780,0,40],[-292,780,2.4,30]]){
+    const s=sAt(wz)/REFS;
+    const x0=sxAt(wx,wz), y0=feetAt(wz)-20*s;
+    ctx.beginPath(); ctx.moveTo(x0,y0);
+    for(let i=1;i<=6;i++){
+      const k=i/6;
+      ctx.lineTo(x0+Math.sin(G.t*1.1+ph+k*3.4)*7*k, y0-k*h);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ---------- the pinch targets ----------
+function drawMarks(){
+  for(const m of G.marks){
+    if(m.fired) continue;
+    const s=sAt(m.z)/REFS, x=sxAt(m.x,m.z), y=feetAt(m.z)-1, rr=12*s;
+    const k=Math.max(0,Math.min(1,G.stateT/1.15));
+    ctx.globalAlpha=Math.sin(G.t*24)>0?.95:.45;
+    // two shadows sliding together: the tips are coming down here
+    ctx.fillStyle='rgba(24,12,8,.75)';
+    const off=rr*(.35+k*1.1);
+    ctx.beginPath(); ctx.ellipse(x-off,y,rr*.34,rr*.16,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x+off,y,rr*.34,rr*.16,0,0,7); ctx.fill();
+    ctx.strokeStyle=P.amber; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.ellipse(x,y,rr*(.5+k),rr*(.5+k)*.4,0,0,7); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+}
+
+// ---------- wasabi ----------
+function drawWasabi(x,y,s,alpha=1){
+  ctx.globalAlpha=alpha;
+  ctx.fillStyle=P.wasabi;
+  ctx.beginPath(); ctx.ellipse(x,y-4*s,6.5*s,5.5*s,0,0,7); ctx.fill();
+  ctx.fillStyle=P.wasabiL;
+  ctx.beginPath(); ctx.ellipse(x-1.5*s,y-6*s,3.2*s,2.2*s,0,0,7); ctx.fill();
+  ctx.fillStyle=P.wasabiD;
+  ctx.beginPath(); ctx.ellipse(x+1.5*s,y-1.5*s,5*s,2*s,0,0,7); ctx.fill();
+  ctx.globalAlpha=1;
+}
+
+function drawBoardBlobs(){
+  for(const b of [...G.blobs].sort((a,c)=>c.z-a.z)){
+    const s=sAt(b.z)/REFS, blink=b.life<2.2&&Math.floor(G.t*10)%2===0;
+    ctx.globalAlpha=blink?.4:.45; ctx.fillStyle='#1b1008';
+    ctx.beginPath(); ctx.ellipse(sxAt(b.x,b.z),feetAt(b.z),7*s,2.4*s,0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+    drawWasabi(sxAt(b.x,b.z),feetAt(b.z),s,blink?.4:1);
+  }
+}
+
+function drawDrops(){
+  for(const l of G.drops){
+    const k=l.t, z=lerp(G.tipZ,l.tz,k), s=sAt(z)/REFS;
+    const x=lerp(l.fx,sxAt(l.tx,l.tz),k);
+    const y=lerp(l.fy,feetAt(l.tz),k)+Math.sin(k*Math.PI)*6;
+    drawWasabi(x,y,Math.max(.45,s));
+  }
+}
+
+function drawFlying(){
+  for(const r of [...G.flying].sort((a,b)=>b.z-a.z)){
+    const k=Math.min(1,Math.max(0,(r.z0-r.z)/(r.z0-70)));
+    const size=Math.max(2,760/r.z);
+    const y=r.y0+(REST.y-r.y0)*k-Math.sin(k*Math.PI)*14;
+    ctx.save(); ctx.translate(r.sx,y); ctx.rotate(r.spin);
+    ctx.fillStyle=P.wasabi; ctx.beginPath(); ctx.arc(0,0,size,0,7); ctx.fill();
+    ctx.fillStyle=P.wasabiL; ctx.beginPath(); ctx.arc(-size*.3,-size*.35,size*.45,0,7); ctx.fill();
+    ctx.fillStyle=P.wasabiD; ctx.beginPath(); ctx.arc(size*.35,size*.3,size*.35,0,7); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ---------- the protagonist ----------
+function pillow(cx,top,hw,h,c){
+  const r=Math.max(.5,Math.min(hw*.5,h*.5));
+  ctx.fillStyle=c; ctx.beginPath();
+  ctx.moveTo(cx-hw+r,top); ctx.lineTo(cx+hw-r,top);
+  ctx.quadraticCurveTo(cx+hw,top,cx+hw,top+r);
+  ctx.lineTo(cx+hw,top+h-r);
+  ctx.quadraticCurveTo(cx+hw,top+h,cx+hw-r,top+h);
+  ctx.lineTo(cx-hw+r,top+h);
+  ctx.quadraticCurveTo(cx-hw,top+h,cx-hw,top+h-r);
+  ctx.lineTo(cx-hw,top+r);
+  ctx.quadraticCurveTo(cx-hw,top,cx-hw+r,top);
+  ctx.closePath(); ctx.fill();
+}
+
+// a pressed pillow of rice with a slice of salmon laid over it
+function drawSushiAt(sx,fy,s,tp,tilt,airborne){
+  const sq=Math.max(0,G.squash);
+  const u=v=>v*s*(1-.14*tp);
+  const ux=v=>u(v)*(1+.3*sq);
+  const uy=v=>u(v)*(1-.26*sq);
+  const step=(!airborne&&(Math.abs(G.pvx)>12||Math.abs(G.pvz)>12)&&Math.sin(G.t*15)>0)?uy(1):0;
+  const wig=airborne?Math.sin(G.t*17)*uy(1):0;
+  const scared=G.panic>0||G.mode==='eaten';
+
+  if(!airborne){
+    ctx.globalAlpha=.45; ctx.fillStyle='#1b1008';
+    ctx.beginPath(); ctx.ellipse(sx,fy+1,s*12*(1-.15*tp),s*(2.6+2.4*tp),0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  ctx.save();
+  if(tilt){ ctx.translate(sx,fy-uy(10)); ctx.rotate(tilt); ctx.translate(-sx,-(fy-uy(10))); }
+
+  // two rice-grain feet, kicking if you are off the plate
+  const fkick=airborne?Math.sin(G.t*19)*uy(2):0;
+  ctx.fillStyle=P.riceD;
+  ctx.beginPath(); ctx.ellipse(sx-ux(6),fy-uy(1.4)-step+fkick,ux(3.4),uy(2),0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(sx+ux(6),fy-uy(1.4)+step-fkick,ux(3.4),uy(2),0,0,7); ctx.fill();
+
+  const riceH=uy(13), riceTop=fy-uy(2)-riceH+wig;
+  pillow(sx,riceTop,ux(11),riceH,P.rice);
+  // grains breaking the bottom silhouette
+  for(let i=0;i<5;i++){
+    const gx=sx-ux(11)+ux(22)*((i+.5)/5);
+    ctx.fillStyle=P.rice;
+    ctx.beginPath(); ctx.ellipse(gx,riceTop+riceH-uy(.6),ux(2.4),uy(2.2),0,0,7); ctx.fill();
+    ctx.globalAlpha=.35; ctx.fillStyle=P.riceD;
+    ctx.beginPath(); ctx.ellipse(gx,riceTop+riceH+uy(.4),ux(2.2),uy(1),0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // pressed grain texture on the face
+  ctx.globalAlpha=.5; ctx.fillStyle=P.riceD;
+  for(const [gx,gy] of [[-7,4],[-3,8],[3,6],[7,9],[0,3],[6,2]]){
+    ctx.beginPath(); ctx.ellipse(sx+ux(gx),riceTop+uy(gy),ux(1.5),uy(.9),.5,0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  ctx.fillStyle=P.riceD;
+  ctx.beginPath(); ctx.ellipse(sx,riceTop+riceH-uy(1.5),ux(10),uy(2),0,0,7); ctx.fill();
+
+  // the salmon, laid over the top and overhanging both ends
+  const salW=ux(13.5), salH=uy(9), salTop=riceTop-salH+uy(3.5);
+  ctx.fillStyle=P.salmon;
+  ctx.beginPath();
+  ctx.moveTo(sx-salW,salTop+salH*.42);
+  ctx.quadraticCurveTo(sx-salW,salTop,sx-salW*.58,salTop);
+  ctx.lineTo(sx+salW*.58,salTop);
+  ctx.quadraticCurveTo(sx+salW,salTop,sx+salW,salTop+salH*.42);
+  ctx.quadraticCurveTo(sx+salW*.94,salTop+salH*1.18,sx+salW*.5,salTop+salH);
+  ctx.lineTo(sx-salW*.5,salTop+salH);
+  ctx.quadraticCurveTo(sx-salW*.94,salTop+salH*1.18,sx-salW,salTop+salH*.42);
+  ctx.closePath(); ctx.fill();
+  // the cut face on top opens up the more you are looking down on it
+  pillow(sx,salTop,salW*.97,uy(2)+uy(4.5)*tp,P.salmonL);
+  // fat striations, running across the grain
+  ctx.save();
+  ctx.beginPath(); ctx.rect(sx-salW,salTop,salW*2,salH); ctx.clip();
+  ctx.globalAlpha=.55; ctx.strokeStyle=P.salmonL; ctx.lineWidth=Math.max(1,uy(1));
+  for(const o of [-8,-1,6]){
+    ctx.beginPath();
+    ctx.moveTo(sx+ux(o)-ux(4),salTop+salH);
+    ctx.lineTo(sx+ux(o)+ux(4),salTop+uy(1));
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1; ctx.restore();
+  ctx.globalAlpha=.6; ctx.fillStyle=P.salmonD;
+  ctx.beginPath(); ctx.ellipse(sx,salTop+salH-uy(.8),salW*.62,uy(1.4),0,0,7); ctx.fill();
+  ctx.globalAlpha=1;
+
+  // face, on the rice
+  const eyeY=riceTop+uy(4.5), er=ux(scared?2.6:1.8);
+  if(scared){
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.ellipse(sx-ux(4.6),eyeY,er,uy(3.2),0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx+ux(4.6),eyeY,er,uy(3.2),0,0,7); ctx.fill();
+    ctx.fillStyle='#20180f';
+    ctx.beginPath(); ctx.ellipse(sx-ux(4.6),eyeY+uy(.4),ux(1.2),uy(1.5),0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx+ux(4.6),eyeY+uy(.4),ux(1.2),uy(1.5),0,0,7); ctx.fill();
+    ctx.fillStyle='#20180f';
+    ctx.beginPath(); ctx.ellipse(sx,eyeY+uy(5),ux(2.2),uy(2.4),0,0,7); ctx.fill();
+    // one bead of sweat
+    ctx.fillStyle=P.tear;
+    ctx.beginPath(); ctx.ellipse(sx+ux(8.4),eyeY-uy(1),ux(1.1),uy(1.8),0,0,7); ctx.fill();
+  } else {
+    ctx.fillStyle='#20180f';
+    ctx.beginPath(); ctx.ellipse(sx-ux(4.6),eyeY,er,uy(2.4),0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx+ux(4.6),eyeY,er,uy(2.4),0,0,7); ctx.fill();
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.ellipse(sx-ux(5.1),eyeY-uy(.7),ux(.7),uy(.8),0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx+ux(4.1),eyeY-uy(.7),ux(.7),uy(.8),0,0,7); ctx.fill();
+    ctx.globalAlpha=.6; ctx.fillStyle=P.riceD;
+    ctx.beginPath(); ctx.ellipse(sx,eyeY+uy(4.4),ux(1.8),uy(.7),0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  // arms
+  if(G.throwAnim>0){
+    ctx.fillStyle=P.rice;
+    ctx.beginPath(); ctx.ellipse(sx+ux(2),salTop-uy(4),ux(2.4),uy(4.5),.3,0,7); ctx.fill();
+  } else {
+    const near=G.face>0?1:-1;
+    ctx.fillStyle=P.rice;
+    ctx.beginPath(); ctx.ellipse(sx+ux(11.5)*near,riceTop+uy(7),ux(2.2),uy(3.6),0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx-ux(11.5)*near,riceTop+uy(7),ux(2.2),uy(3.6),0,0,7); ctx.fill();
+    if(G.carry) drawWasabi(sx-ux(13)*near,riceTop+uy(11),s*.75);
+  }
+  ctx.restore();
+  return salTop;
+}
+
+function drawSushi(){
+  const sx=Math.round(playerSX()), fy=Math.round(playerFY());
+  const s=playerSc(), tp=topness(G.pz);
+  if(G.hurt>0&&Math.floor(G.t*22)%2===0) return;
+  const salTop=drawSushiAt(sx,fy,s,tp,0,false);
+  // the lens marks you when you are in the lane
+  if(Math.abs(sx-W/2)<GAP){
+    ctx.strokeStyle=P.amber; ctx.lineWidth=1; ctx.globalAlpha=.85;
+    const w=s*16,h=(fy-salTop)+5,tx=sx-w,ty=salTop-5;
+    ctx.beginPath();
+    ctx.moveTo(tx,ty+4);ctx.lineTo(tx,ty);ctx.lineTo(tx+4,ty);
+    ctx.moveTo(tx+2*w-4,ty);ctx.lineTo(tx+2*w,ty);ctx.lineTo(tx+2*w,ty+4);
+    ctx.moveTo(tx,ty+h-4);ctx.lineTo(tx,ty+h);ctx.lineTo(tx+4,ty+h);
+    ctx.moveTo(tx+2*w-4,ty+h);ctx.lineTo(tx+2*w,ty+h);ctx.lineTo(tx+2*w,ty+h-4);
+    ctx.stroke(); ctx.globalAlpha=1;
+  }
+}
+
+function drawSparks(){
+  for(const s of G.sparks){ctx.globalAlpha=1-s.t/s.life;rect(s.x,s.y,2,2,s.col);}
+  ctx.globalAlpha=1;
+}
+
+// ---------- the chopsticks: held in your hand, so the grip never leaves the corner ----------
+function drawTipShadows(){
+  if(G.mode==='eaten') return;
+  const s=sAt(G.tipZ), gy=feetAt(G.tipZ);
+  const sep=G.tipSep, drop=Math.max(0,(gy-G.tipY))/40;
+  ctx.globalAlpha=Math.max(.12,.5-drop*.12);
+  ctx.fillStyle='#1b1008';
+  ctx.beginPath(); ctx.ellipse(G.tipX-sep/2,gy,3.4*s/sAt(700)*1.6+drop,1.6+drop*.4,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(G.tipX+sep/2,gy,3.4*s/sAt(700)*1.6+drop,1.6+drop*.4,0,0,7); ctx.fill();
+  ctx.globalAlpha=1;
+}
+
+function stick(ax,ay,tx,ty,halfA,halfT){
+  const dx=tx-ax, dy=ty-ay, len=Math.hypot(dx,dy)||1;
+  const nx=-dy/len, ny=dx/len;
+  poly([[ax+nx*halfA,ay+ny*halfA],[tx+nx*halfT,ty+ny*halfT],
+        [tx-nx*halfT,ty-ny*halfT],[ax-nx*halfA,ay-ny*halfA]],P.stick);
+  // lit edge along the top of the shaft
+  poly([[ax+nx*halfA,ay+ny*halfA],[tx+nx*halfT,ty+ny*halfT],
+        [tx+nx*halfT*.2,ty+ny*halfT*.2],[ax+nx*halfA*.2,ay+ny*halfA*.2]],P.stickL);
+  poly([[ax-nx*halfA,ay-ny*halfA],[tx-nx*halfT,ty-ny*halfT],
+        [tx-nx*halfT*.3,ty-ny*halfT*.3],[ax-nx*halfA*.3,ay-ny*halfA*.3]],P.stickD);
+  // lacquered tip
+  const k=Math.min(1,16/len);
+  const bx=tx-dx*k, by=ty-dy*k;
+  poly([[bx+nx*halfT*1.5,by+ny*halfT*1.5],[tx+nx*halfT,ty+ny*halfT],
+        [tx-nx*halfT,ty-ny*halfT],[bx-nx*halfT*1.5,by-ny*halfT*1.5]],P.tip);
+}
+
+function drawChopsticks(){
+  const lurch=Math.max(0,G.lurch);
+  ctx.save();
+  ctx.translate(lurch*14, lurch*12);
+  const tl=[G.tipX-G.tipSep/2, G.tipY], tr=[G.tipX+G.tipSep/2, G.tipY];
+  const eating=G.mode==='eaten';
+  const scale=eating ? G.tipThick : Math.max(.6, sAt(G.tipZ)/sAt(700))*1.7;
+  const grip=eating ? 6+G.tipThick*1.4 : 6;
+  stick(304,232, tl[0],tl[1], grip, scale);
+  stick(342,206, tr[0],tr[1], grip, scale);
+  if(eating){ ctx.restore(); return; }
+  // the lane between the tips, drawn on the lens
+  const aligned=Math.abs(playerSX()-W/2)<GAP;
+  const open=sticksOpen();
+  ctx.strokeStyle=(aligned&&open)?P.amber:'rgba(243,226,200,.3)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  const ly=VP.y1-9;
+  ctx.moveTo(W/2-GAP-.5,ly);ctx.lineTo(W/2-GAP-.5,ly+7);ctx.lineTo(W/2-GAP+5,ly+7);
+  ctx.moveTo(W/2+GAP+.5,ly);ctx.lineTo(W/2+GAP+.5,ly+7);ctx.lineTo(W/2+GAP-5,ly+7);
+  ctx.stroke();
+  if(aligned&&open){ ctx.globalAlpha=.16+.14*Math.sin(G.t*12); rect(W/2-GAP,ly,GAP*2,7,P.amber); ctx.globalAlpha=1; }
+  ctx.restore();
+}
+
+// ---------- the lens you are looking through ----------
+const SMUDGE=Array.from({length:30},()=>({x:VP.x0+Math.random()*(VP.x1-VP.x0),y:VP.y0+Math.random()*(VP.y1-VP.y0),a:.05+Math.random()*.1}));
+const PRINTS=[{x:66,y:44,r:30},{x:246,y:130,r:34},{x:146,y:166,r:24}];
+
+function drawLens(){
+  // the glass is thicker toward the rim
+  const g=ctx.createRadialGradient(W/2,100,44,W/2,100,196);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(.55,'rgba(6,3,6,.12)'); g.addColorStop(1,'rgba(6,3,6,.5)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // hazy smudges and dust, stuck to the pane
+  for(const f of PRINTS){
+    const sg=ctx.createRadialGradient(f.x,f.y,1,f.x,f.y,f.r);
+    sg.addColorStop(0,'rgba(255,252,244,.05)'); sg.addColorStop(1,'rgba(255,252,244,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,7); ctx.fill();
+  }
+  for(const d of SMUDGE){ ctx.globalAlpha=d.a; rect(d.x,d.y,1,1,'#fff6e8'); }
+  ctx.globalAlpha=1;
+
+  // wasabi, welded to the lens
+  ctx.save();
+  ctx.beginPath(); ctx.rect(VP.x0,VP.y0,VP.x1-VP.x0,VP.y1-VP.y0); ctx.clip();
+  for(const s of G.splats){
+    const grow=Math.min(1,s.t*5);
+    for(const f of s.flecks){ ctx.globalAlpha=.75; rect(f.x,f.y,f.s,f.s,P.wasabiD); }
+    ctx.globalAlpha=1;
+    // drips creep down over the first couple of seconds
+    for(const d of s.drips){
+      const len=d.len*Math.min(1,s.t/2.2)*grow;
+      ctx.globalAlpha=.8; ctx.fillStyle=P.wasabiD;
+      ctx.fillRect(Math.round(s.cx+d.dx-d.w/2),Math.round(s.cy),Math.round(d.w),Math.round(len));
+      ctx.beginPath(); ctx.arc(s.cx+d.dx,s.cy+len,d.w*.75,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    }
+    ctx.globalAlpha=.86; ctx.fillStyle=P.wasabi;
+    ctx.beginPath();
+    s.pts.forEach((p,i)=>{ const r=p.r*grow, x=s.cx+Math.cos(p.a)*r, y=s.cy+Math.sin(p.a)*r*.82;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha=.5; ctx.fillStyle=P.wasabiD;
+    ctx.beginPath(); ctx.ellipse(s.cx+2*s.mag,s.cy+3*s.mag,5*s.mag*grow,3.4*s.mag*grow,0,0,7); ctx.fill();
+    ctx.globalAlpha=.6; ctx.fillStyle=P.wasabiL;
+    ctx.beginPath(); ctx.ellipse(s.cx-3*s.mag,s.cy-3*s.mag,3.2*s.mag*grow,2.2*s.mag*grow,0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // watering eye: streaks running down the inside of the lens
+  for(const t of G.tears){
+    const k=Math.min(1,t.t/1.2), a=Math.max(0,1-t.t/t.life);
+    ctx.globalAlpha=.3*a; ctx.strokeStyle=P.tear; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(t.x,VP.y0);
+    for(let i=1;i<=5;i++){ const p=i/5;
+      ctx.lineTo(t.x+Math.sin(p*4+t.wob)*3, VP.y0+(VP.y1-VP.y0)*p*k); }
+    ctx.stroke(); ctx.globalAlpha=1;
+  }
+  ctx.restore();
+
+  if(G.sting>0){ ctx.globalAlpha=.1*Math.max(0,Math.sin(G.t*13))*Math.min(1,G.sting); rect(0,0,W,H,P.wasabiL); ctx.globalAlpha=1; }
+
+  // the blink. the top lid does most of the work
+  if(G.blink>0){
+    const k=G.blink<=1?G.blink:2-G.blink;
+    const h=VP.y1-VP.y0;
+    const top=VP.y0+h*.66*k, bot=VP.y1-h*.34*k;
+    ctx.fillStyle='#080508';
+    ctx.fillRect(VP.x0,VP.y0,VP.x1-VP.x0,top-VP.y0);
+    ctx.fillRect(VP.x0,bot,VP.x1-VP.x0,VP.y1-bot);
+    ctx.fillStyle='#2a1c18';
+    ctx.fillRect(VP.x0,Math.round(top)-1,VP.x1-VP.x0,1);
+    ctx.fillRect(VP.x0,Math.round(bot),VP.x1-VP.x0,1);
+  }
+
+  // spectacle rim
+  rect(0,0,W,VP.y0,P.frame); rect(0,VP.y1,W,H-VP.y1,P.frame);
+  rect(0,0,VP.x0,H,P.frame); rect(VP.x1,0,W-VP.x1,H,P.frame);
+  rect(0,0,4,H,P.frameD);                       // toward the bridge and the other lens
+  // generously rounded lens corners
+  for(const [cx,cy] of [[VP.x0,VP.y0],[VP.x1,VP.y0],[VP.x0,VP.y1],[VP.x1,VP.y1]]){
+    const sx=cx<W/2?1:-1, sy=cy<H/2?1:-1;
+    ctx.fillStyle=P.frame;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.quadraticCurveTo(cx+sx*26,cy+sy*2,cx+sx*30,cy+sy*22);
+    ctx.lineTo(cx,cy+sy*22); ctx.closePath(); ctx.fill();
+  }
+  rect(0,VP.y0-1,W,1,P.frameD); rect(0,VP.y1,W,1,P.frameD);
+  rect(VP.x0-1,0,1,H,P.frameD); rect(VP.x1,0,1,H,P.frameD);
+  ctx.globalAlpha=.6; rect(0,VP.y0-2,W,1,P.frameL); rect(VP.x1+1,0,1,H,P.frameL); ctx.globalAlpha=1;
+  // a faint readout etched across the top of the lens
+  const off=((-G.yaw*.6)%16+16)%16;
+  ctx.globalAlpha=.45;
+  for(let x=VP.x0+off-16;x<VP.x1;x+=16) rect(x,3,1,(Math.round((x-off)/16)%3===0)?6:3,P.bone);
+  ctx.globalAlpha=1;
+  rect(W/2-1,2,2,8,P.amber);
+}
+
+function drawHUD(){
+  text('APPETITE',10,VP.y1+4,'rgba(243,226,200,.45)','left',7);
+  for(let i=0;i<MAXHP;i++){
+    const x=48+i*12; rect(x,VP.y1+4,9,6,'#1a120a');
+    rect(x+1,VP.y1+5,7,4,i<G.hits?'#2f2a16':P.amber);
+  }
+  text('FRESH',W-52,VP.y1+4,'rgba(243,226,200,.45)','left',7);
+  for(let i=0;i<5;i++) rect(W-26+i*4,VP.y1+4,3,6,i<G.hp?P.salmon:'#2b1d16');
+  const armed=G.carry||G.blobs.length>0;
+  if(armed&&Math.floor(G.t*6)%2===0) text('WASABI LOOSE',W/2,VP.y1+4,P.wasabiL,'center',7);
+  else if(!armed) text(G.phase==='stab'?'GRABBING':G.phase==='aim'?'LINING UP':'HOVERING',W/2,VP.y1+4,'rgba(243,226,200,.4)','center',7);
+  if(G.msgT>0&&Math.floor(G.t*10)%2===0) text(G.msg,W/2,VP.y0+6,P.wasabiL,'center');
+}
+
+function overlay(title,lines,col){
+  ctx.fillStyle='rgba(14,8,10,.86)'; ctx.fillRect(VP.x0,VP.y0,VP.x1-VP.x0,VP.y1-VP.y0);
+  text(title,W/2,52,col,'center',15);
+  lines.forEach((l,i)=>text(l,W/2,84+i*12,i===lines.length-1?P.amber:P.bone,'center',8));
+}
+
+function render(){
+  ctx.fillStyle=P.room0; ctx.fillRect(0,0,W,H);
+  // breathing, the tremor of a held hand, and the recoil of wasabi in the eye
+  const by=Math.sin(G.breath)*1.6+Math.sin(G.breath*3.1)*.5-Math.max(0,G.lurch)*7;
+  const bx=Math.sin(G.breath*.5)*1.3+Math.sin(G.t*9)*(.3+G.hits*.35);
+  const eating=G.mode==='eaten';
+  ctx.save();
+  ctx.translate(Math.round(G.shakeX+bx),Math.round(G.shakeY+by));
+  drawRoom(); drawTable(); drawProps(); drawPlate(); drawSteam();
+  drawMarks(); drawTipShadows(); drawBoardBlobs();
+  if(!eating) drawSushi();
+  drawDrops(); drawFlying(); drawSparks();
+  ctx.restore();
+  // once you are off the plate you belong to the chopsticks, not to the world
+  if(eating && G.eat) drawSushiAt(G.eat.x,G.eat.y,G.eat.sc,G.eat.tp,G.eat.tilt,G.eatT>=.4);
+  drawChopsticks();
+  drawLens();
+  drawHUD();
+
+  if(G.mode==='title')
+    overlay('THE LAST PIECE',['ONE MORSEL LEFT ON THE PLATE','DODGE THE TIPS, GRAB THE WASABI','PUT IT UP THE LANE, INTO HIS EYE','PRESS SPACE OR TAP'],P.wasabi);
+  else if(G.mode==='win')
+    overlay('CHECK, PLEASE',['THREE BLOBS, DEAD IN THE EYE','FRESHNESS LEFT: '+G.hp,'SPACE / TAP TO GO AGAIN'],P.wasabiL);
+  else if(G.mode==='lose')
+    overlay('ITADAKIMASU',['HE GOT YOU IN THE END','APPETITE INTACT: '+(MAXHP-G.hits)+' OF '+MAXHP,'SPACE / TAP TO GO AGAIN'],P.salmon);
+}
+
+// ---------- loop ----------
+reset();
+G.mode='title';
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.034,(now-last)/1000); last=now;
+  if(G.mode==='title'){
+    G.t+=dt; G.breath+=dt*1.4; G.yaw=Math.sin(G.t*.8)*40;
+    setTipsFromWorld(Math.sin(G.t*.6)*90,700,58,.15+.15*Math.sin(G.t*1.7));
+  } else update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
